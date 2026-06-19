@@ -153,6 +153,93 @@ export default function DriverDashboardPage() {
     )
   }
 
+  function correctVoiceLocation(input: string) {
+    const text = input.toLowerCase().trim()
+
+    const corrections: { keywords: string[]; value: string }[] = [
+      {
+        value: 'KIZAD',
+        keywords: ['kizad', 'kizaat', 'kiz zed', 'kizard', 'lzzat', 'izzat', 'pizza hut', 'pizza hot', 'keyzad', 'kezad'],
+      },
+      {
+        value: 'Al Quoz',
+        keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'al kohz', 'al kooz', 'alcohol', 'al coz', 'al qus'],
+      },
+      {
+        value: 'Jebel Ali',
+        keywords: ['jebel ali', 'jabal ali', 'jebel aly', 'jabal aly', 'jabel ali', 'jabel aly'],
+      },
+      {
+        value: 'JAFZA',
+        keywords: ['jafza', 'jafza free zone', 'jebel ali free zone', 'jabal ali free zone'],
+      },
+      {
+        value: 'Khalifa Port',
+        keywords: ['khalifa port', 'kalifa port', 'khalifa board', 'califa port'],
+      },
+      {
+        value: 'Mussafah',
+        keywords: ['mussafah', 'musaffah', 'musafa', 'musaafah'],
+      },
+      {
+        value: 'ICAD',
+        keywords: ['icad', 'i cad', 'eye cad', 'icad city'],
+      },
+      {
+        value: 'DIP',
+        keywords: ['dip', 'd i p', 'dubai investment park'],
+      },
+      {
+        value: 'Dubai South',
+        keywords: ['dubai south', 'south dubai'],
+      },
+      {
+        value: 'Dubai Industrial City',
+        keywords: ['dubai industrial city', 'industrial city dubai'],
+      },
+      {
+        value: 'Abu Dhabi',
+        keywords: ['abu dhabi', 'abudhabi', 'abu dabi'],
+      },
+      {
+        value: 'Dubai',
+        keywords: ['dubai', 'dubi'],
+      },
+      {
+        value: 'Sharjah',
+        keywords: ['sharjah', 'sharja'],
+      },
+      {
+        value: 'Ajman',
+        keywords: ['ajman', 'ajmaan'],
+      },
+      {
+        value: 'Fujairah',
+        keywords: ['fujairah', 'fujaira', 'fujeirah'],
+      },
+      {
+        value: 'Ras Al Khaimah',
+        keywords: ['ras al khaimah', 'ras al khaima', 'rak'],
+      },
+      {
+        value: 'Umm Al Quwain',
+        keywords: ['umm al quwain', 'um al quwain', 'umm alquwain'],
+      },
+      {
+        value: 'Al Ain',
+        keywords: ['al ain', 'alain'],
+      },
+    ]
+
+    for (const item of corrections) {
+      if (item.keywords.some((keyword) => text.includes(keyword))) {
+        return item.value
+      }
+    }
+
+    return input
+  }
+
   function startVoiceInput(field: 'from' | 'to') {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
@@ -171,12 +258,13 @@ export default function DriverDashboardPage() {
     recognition.start()
 
     recognition.onresult = (event: any) => {
-      const text = event.results[0][0].transcript
+      const rawText = event.results[0][0].transcript
+      const correctedText = correctVoiceLocation(rawText)
 
       if (field === 'from') {
-        setFromLocation(text)
+        setFromLocation(correctedText)
       } else {
-        setToLocation(text)
+        setToLocation(correctedText)
       }
     }
 
