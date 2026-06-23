@@ -266,19 +266,16 @@ export default function DriverDashboardPage() {
     let allowedFuelGallons = 0
     let fuelCalculated = false
 
-    const routeRes = await supabase
-      .from('diesel_route_master')
-      .select('allowed_fuel_gallons')
-      .eq('company_id', companyId)
-      .eq('from_norm', fromNorm)
-      .eq('to_norm', toNorm)
-      .eq('is_active', true)
-      .maybeSingle()
+    const fuelRes = await supabase.rpc('get_allowed_fuel_gallons', {
+  p_company_id: companyId,
+  p_from_norm: fromNorm,
+  p_to_norm: toNorm,
+})
 
-    if (!routeRes.error && routeRes.data) {
-      allowedFuelGallons = Number(routeRes.data.allowed_fuel_gallons || 0)
-      fuelCalculated = allowedFuelGallons > 0
-    }
+if (!fuelRes.error) {
+  allowedFuelGallons = Number(fuelRes.data || 0)
+  fuelCalculated = allowedFuelGallons > 0
+}
 
     const { error } = await supabase.from('trips').insert([
       {
