@@ -645,7 +645,9 @@ export default function DriverDashboardPage() {
                   <td className="p-3 font-semibold">{trip.trip_no}</td>
                   <td className="p-3">{trip.trip_date}</td>
                   <td className="p-3">
-                    {trip.companies?.company_name || '-'}
+                    {Array.isArray(trip.companies)
+  ? trip.companies[0]?.company_name || '-'
+  : trip.companies?.company_name || '-'}
                   </td>
                   <td className="p-3">{trip.from_location}</td>
                   <td className="p-3">{trip.to_location}</td>
