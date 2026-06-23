@@ -22,7 +22,7 @@ type Trip = {
   trip_allowance: number
   status: string
   documents_uploaded: boolean | null
-  companies: { company_name: string }[] | null
+  companies: { company_name: string }[] | { company_name: string } | null
 }
 
 export default function DriverDashboardPage() {
@@ -128,6 +128,39 @@ export default function DriverDashboardPage() {
     setTrips((data || []) as Trip[])
   }
 
+  function normalizeLocation(input: string) {
+    const text = input.toLowerCase().trim()
+
+    const corrections: { keywords: string[]; value: string }[] = [
+      { value: 'KIZAD', keywords: ['kizad', 'kizaat', 'lzzat', 'izzat', 'pizza hut', 'keyzad', 'kezad'] },
+      { value: 'AL QUOZ', keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'alcohol', 'al kooz', 'al coz'] },
+      { value: 'JEBEL ALI', keywords: ['jebel ali', 'jabal ali', 'jabel ali', 'jab loli'] },
+      { value: 'JAFZA', keywords: ['jafza', 'jebel ali free zone', 'jabal ali free zone'] },
+      { value: 'KHALIFA PORT', keywords: ['khalifa port', 'kalifa port', 'califa port'] },
+      { value: 'MUSSAFAH', keywords: ['mussafah', 'musaffah', 'musafa'] },
+      { value: 'ICAD', keywords: ['icad', 'i cad', 'eye cad'] },
+      { value: 'DIP', keywords: ['dip', 'd i p', 'dubai investment park'] },
+      { value: 'DUBAI SOUTH', keywords: ['dubai south', 'south dubai'] },
+      { value: 'DUBAI INDUSTRIAL CITY', keywords: ['dubai industrial city', 'industrial city dubai', 'dic'] },
+      { value: 'ABU DHABI', keywords: ['abu dhabi', 'abudhabi', 'abu dabi', 'abu dhbai'] },
+      { value: 'DUBAI', keywords: ['dubai', 'dubi'] },
+      { value: 'SHARJAH', keywords: ['sharjah', 'sharja', 'sher'] },
+      { value: 'AJMAN', keywords: ['ajman', 'ajmaan'] },
+      { value: 'FUJAIRAH', keywords: ['fujairah', 'fujaira', 'fujeirah'] },
+      { value: 'RAS AL KHAIMAH', keywords: ['ras al khaimah', 'ras al khaima', 'rak'] },
+      { value: 'UMM AL QUWAIN', keywords: ['umm al quwain', 'um al quwain', 'uaq'] },
+      { value: 'AL AIN', keywords: ['al ain', 'alain'] },
+    ]
+
+    for (const item of corrections) {
+      if (item.keywords.some((keyword) => text.includes(keyword))) {
+        return item.value
+      }
+    }
+
+    return input.trim().toUpperCase()
+  }
+
   function captureGps() {
     if (!navigator.geolocation) {
       setGpsStatus('GPS is not supported on this device/browser')
@@ -153,93 +186,6 @@ export default function DriverDashboardPage() {
     )
   }
 
-  function correctVoiceLocation(input: string) {
-    const text = input.toLowerCase().trim()
-
-    const corrections: { keywords: string[]; value: string }[] = [
-      {
-        value: 'KIZAD',
-        keywords: ['kizad', 'kizaat', 'kiz zed', 'kizard', 'lzzat', 'izzat', 'pizza hut', 'pizza hot', 'keyzad', 'kezad'],
-      },
-      {
-        value: 'Al Quoz',
-        keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'al kohz', 'al kooz', 'alcohol', 'al coz', 'al qus'],
-      },
-      {
-        value: 'Jebel Ali',
-        keywords: ['jebel ali', 'jabal ali', 'jebel aly', 'jabal aly', 'jabel ali', 'jabel aly'],
-      },
-      {
-        value: 'JAFZA',
-        keywords: ['jafza', 'jafza free zone', 'jebel ali free zone', 'jabal ali free zone'],
-      },
-      {
-        value: 'Khalifa Port',
-        keywords: ['khalifa port', 'kalifa port', 'khalifa board', 'califa port'],
-      },
-      {
-        value: 'Mussafah',
-        keywords: ['mussafah', 'musaffah', 'musafa', 'musaafah'],
-      },
-      {
-        value: 'ICAD',
-        keywords: ['icad', 'i cad', 'eye cad', 'icad city'],
-      },
-      {
-        value: 'DIP',
-        keywords: ['dip', 'd i p', 'dubai investment park'],
-      },
-      {
-        value: 'Dubai South',
-        keywords: ['dubai south', 'south dubai'],
-      },
-      {
-        value: 'Dubai Industrial City',
-        keywords: ['dubai industrial city', 'industrial city dubai'],
-      },
-      {
-        value: 'Abu Dhabi',
-        keywords: ['abu dhabi', 'abudhabi', 'abu dabi'],
-      },
-      {
-        value: 'Dubai',
-        keywords: ['dubai', 'dubi'],
-      },
-      {
-        value: 'Sharjah',
-        keywords: ['sharjah', 'sharja'],
-      },
-      {
-        value: 'Ajman',
-        keywords: ['ajman', 'ajmaan'],
-      },
-      {
-        value: 'Fujairah',
-        keywords: ['fujairah', 'fujaira', 'fujeirah'],
-      },
-      {
-        value: 'Ras Al Khaimah',
-        keywords: ['ras al khaimah', 'ras al khaima', 'rak'],
-      },
-      {
-        value: 'Umm Al Quwain',
-        keywords: ['umm al quwain', 'um al quwain', 'umm alquwain'],
-      },
-      {
-        value: 'Al Ain',
-        keywords: ['al ain', 'alain'],
-      },
-    ]
-
-    for (const item of corrections) {
-      if (item.keywords.some((keyword) => text.includes(keyword))) {
-        return item.value
-      }
-    }
-
-    return input
-  }
-
   function startVoiceInput(field: 'from' | 'to') {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
@@ -259,7 +205,7 @@ export default function DriverDashboardPage() {
 
     recognition.onresult = (event: any) => {
       const rawText = event.results[0][0].transcript
-      const correctedText = correctVoiceLocation(rawText)
+      const correctedText = normalizeLocation(rawText)
 
       if (field === 'from') {
         setFromLocation(correctedText)
@@ -302,6 +248,14 @@ export default function DriverDashboardPage() {
       return
     }
 
+    if (!companyId) {
+      alert('Please select company')
+      return
+    }
+
+    const fromNorm = normalizeLocation(fromLocation)
+    const toNorm = normalizeLocation(toLocation)
+
     const gpsMapLink =
       gpsLatitude && gpsLongitude
         ? `https://www.google.com/maps?q=${gpsLatitude},${gpsLongitude}`
@@ -309,21 +263,43 @@ export default function DriverDashboardPage() {
 
     setSaving(true)
 
+    let allowedFuelGallons = 0
+    let fuelCalculated = false
+
+    const routeRes = await supabase
+      .from('diesel_route_master')
+      .select('allowed_fuel_gallons')
+      .eq('company_id', companyId)
+      .eq('from_norm', fromNorm)
+      .eq('to_norm', toNorm)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!routeRes.error && routeRes.data) {
+      allowedFuelGallons = Number(routeRes.data.allowed_fuel_gallons || 0)
+      fuelCalculated = allowedFuelGallons > 0
+    }
+
     const { error } = await supabase.from('trips').insert([
       {
         driver_id: driver.driver_id,
         vehicle_id: vehicleId,
         trailer_id: trailerId || null,
-        company_id: companyId || null,
+        company_id: companyId,
         trip_date: new Date().toISOString().split('T')[0],
         from_location: fromLocation.trim(),
         to_location: toLocation.trim(),
+        from_norm: fromNorm,
+        to_norm: toNorm,
         trip_allowance: allowance ? Number(allowance) : 0,
         remarks: remarks.trim(),
         status: 'Pending',
         gps_latitude: gpsLatitude,
         gps_longitude: gpsLongitude,
         gps_map_link: gpsMapLink,
+        allowed_fuel_gallons: allowedFuelGallons,
+        fuel_calculated: fuelCalculated,
+        fuel_eligible: false,
       },
     ])
 
@@ -669,7 +645,7 @@ export default function DriverDashboardPage() {
                   <td className="p-3 font-semibold">{trip.trip_no}</td>
                   <td className="p-3">{trip.trip_date}</td>
                   <td className="p-3">
-                    {trip.companies?.[0]?.company_name || '-'}
+                    {trip.companies?.company_name || '-'}
                   </td>
                   <td className="p-3">{trip.from_location}</td>
                   <td className="p-3">{trip.to_location}</td>
