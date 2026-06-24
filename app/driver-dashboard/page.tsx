@@ -271,7 +271,13 @@ export default function DriverDashboardPage() {
   p_from_norm: fromNorm,
   p_to_norm: toNorm,
 })
-
+console.log('FUEL RPC RESULT', {
+  companyId,
+  fromNorm,
+  toNorm,
+  data: fuelRes.data,
+  error: fuelRes.error,
+})
 if (!fuelRes.error) {
   allowedFuelGallons = Number(fuelRes.data || 0)
   fuelCalculated = allowedFuelGallons > 0
