@@ -25,12 +25,22 @@ type Trip = {
   companies: { company_name: string }[] | { company_name: string } | null
 }
 
+type FuelRouteRow = {
+  from_location: string | null
+  to_location: string | null
+  from_norm: string | null
+  to_norm: string | null
+}
+
 export default function DriverDashboardPage() {
   const [driver, setDriver] = useState<DriverSession | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trailers, setTrailers] = useState<Trailer[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
+
+  const [fromOptions, setFromOptions] = useState<string[]>([])
+  const [toOptions, setToOptions] = useState<string[]>([])
 
   const [vehicleId, setVehicleId] = useState('')
   const [trailerId, setTrailerId] = useState('')
@@ -128,28 +138,125 @@ export default function DriverDashboardPage() {
     setTrips((data || []) as Trip[])
   }
 
+  async function loadCompanyRoutes(selectedCompanyId: string) {
+    setFromOptions([])
+    setToOptions([])
+
+    if (!selectedCompanyId) return
+
+    const rpcRes = await supabase.rpc('get_company_fuel_route_locations', {
+      p_company_id: selectedCompanyId,
+    })
+
+    if (rpcRes.error) {
+      alert(rpcRes.error.message)
+      return
+    }
+
+    const rows = (rpcRes.data || []) as FuelRouteRow[]
+
+    const fromSet = new Set<string>()
+    const toSet = new Set<string>()
+
+    rows.forEach((row) => {
+      const fromValue = normalizeLocation(row.from_norm || row.from_location || '')
+      const toValue = normalizeLocation(row.to_norm || row.to_location || '')
+
+      if (fromValue) fromSet.add(fromValue)
+      if (toValue) toSet.add(toValue)
+    })
+
+    setFromOptions(Array.from(fromSet).sort())
+    setToOptions(Array.from(toSet).sort())
+
+    if (rows.length === 0) {
+      alert('No fuel routes found for this company. Please check Fuel Route Master.')
+    }
+  }
+
+  async function handleCompanyChange(newCompanyId: string) {
+    setCompanyId(newCompanyId)
+    setFromLocation('')
+    setToLocation('')
+    await loadCompanyRoutes(newCompanyId)
+  }
+
   function normalizeLocation(input: string) {
     const text = input.toLowerCase().trim()
 
     const corrections: { keywords: string[]; value: string }[] = [
-      { value: 'KIZAD', keywords: ['kizad', 'kizaat', 'lzzat', 'izzat', 'pizza hut', 'keyzad', 'kezad'] },
-      { value: 'AL QUOZ', keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'alcohol', 'al kooz', 'al coz'] },
-      { value: 'JEBEL ALI', keywords: ['jebel ali', 'jabal ali', 'jabel ali', 'jab loli'] },
-      { value: 'JAFZA', keywords: ['jafza', 'jebel ali free zone', 'jabal ali free zone'] },
-      { value: 'KHALIFA PORT', keywords: ['khalifa port', 'kalifa port', 'califa port'] },
-      { value: 'MUSSAFAH', keywords: ['mussafah', 'musaffah', 'musafa'] },
-      { value: 'ICAD', keywords: ['icad', 'i cad', 'eye cad'] },
-      { value: 'DIP', keywords: ['dip', 'd i p', 'dubai investment park'] },
-      { value: 'DUBAI SOUTH', keywords: ['dubai south', 'south dubai'] },
-      { value: 'DUBAI INDUSTRIAL CITY', keywords: ['dubai industrial city', 'industrial city dubai', 'dic'] },
-      { value: 'ABU DHABI', keywords: ['abu dhabi', 'abudhabi', 'abu dabi', 'abu dhbai'] },
-      { value: 'DUBAI', keywords: ['dubai', 'dubi'] },
-      { value: 'SHARJAH', keywords: ['sharjah', 'sharja', 'sher'] },
-      { value: 'AJMAN', keywords: ['ajman', 'ajmaan'] },
-      { value: 'FUJAIRAH', keywords: ['fujairah', 'fujaira', 'fujeirah'] },
-      { value: 'RAS AL KHAIMAH', keywords: ['ras al khaimah', 'ras al khaima', 'rak'] },
-      { value: 'UMM AL QUWAIN', keywords: ['umm al quwain', 'um al quwain', 'uaq'] },
-      { value: 'AL AIN', keywords: ['al ain', 'alain'] },
+      {
+        value: 'KIZAD',
+        keywords: ['kizad', 'kizaat', 'lzzat', 'izzat', 'pizza hut', 'keyzad', 'kezad'],
+      },
+      {
+        value: 'AL QUOZ',
+        keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'alcohol', 'al kooz', 'al coz'],
+      },
+      {
+        value: 'JEBEL ALI',
+        keywords: ['jebel ali', 'jabal ali', 'jabel ali', 'jab loli', 'j ali', 'j.ali'],
+      },
+      {
+        value: 'JAFZA',
+        keywords: ['jafza', 'jebel ali free zone', 'jabal ali free zone'],
+      },
+      {
+        value: 'KHALIFA PORT',
+        keywords: ['khalifa port', 'kalifa port', 'califa port'],
+      },
+      {
+        value: 'MUSSAFAH',
+        keywords: ['mussafah', 'musaffah', 'musafa'],
+      },
+      {
+        value: 'ICAD',
+        keywords: ['icad', 'i cad', 'eye cad'],
+      },
+      {
+        value: 'DIP',
+        keywords: ['dip', 'd i p', 'dubai investment park'],
+      },
+      {
+        value: 'DUBAI SOUTH',
+        keywords: ['dubai south', 'south dubai'],
+      },
+      {
+        value: 'DUBAI INDUSTRIAL CITY',
+        keywords: ['dubai industrial city', 'industrial city dubai', 'dic'],
+      },
+      {
+        value: 'ABU DHABI',
+        keywords: ['abu dhabi', 'abudhabi', 'abu dabi', 'abu dhbai', 'abu dhbhi', 'abu dhbi'],
+      },
+      {
+        value: 'DUBAI',
+        keywords: ['dubai', 'dubi'],
+      },
+      {
+        value: 'SHARJAH',
+        keywords: ['sharjah', 'sharja', 'sher'],
+      },
+      {
+        value: 'AJMAN',
+        keywords: ['ajman', 'ajmaan'],
+      },
+      {
+        value: 'FUJAIRAH',
+        keywords: ['fujairah', 'fujaira', 'fujeirah'],
+      },
+      {
+        value: 'RAS AL KHAIMAH',
+        keywords: ['ras al khaimah', 'ras al khaima', 'rak'],
+      },
+      {
+        value: 'UMM AL QUWAIN',
+        keywords: ['umm al quwain', 'um al quwain', 'uaq'],
+      },
+      {
+        value: 'AL AIN',
+        keywords: ['al ain', 'alain'],
+      },
     ]
 
     for (const item of corrections) {
@@ -159,6 +266,24 @@ export default function DriverDashboardPage() {
     }
 
     return input.trim().toUpperCase()
+  }
+
+  function selectClosestRouteOption(value: string, options: string[]) {
+    const corrected = normalizeLocation(value)
+
+    const exact = options.find(
+      (option) => normalizeLocation(option) === corrected
+    )
+
+    if (exact) return exact
+
+    const contains = options.find(
+      (option) =>
+        normalizeLocation(option).includes(corrected) ||
+        corrected.includes(normalizeLocation(option))
+    )
+
+    return contains || corrected
   }
 
   function captureGps() {
@@ -205,12 +330,13 @@ export default function DriverDashboardPage() {
 
     recognition.onresult = (event: any) => {
       const rawText = event.results[0][0].transcript
-      const correctedText = normalizeLocation(rawText)
 
       if (field === 'from') {
-        setFromLocation(correctedText)
+        const selected = selectClosestRouteOption(rawText, fromOptions)
+        setFromLocation(selected)
       } else {
-        setToLocation(correctedText)
+        const selected = selectClosestRouteOption(rawText, toOptions)
+        setToLocation(selected)
       }
     }
 
@@ -253,6 +379,16 @@ export default function DriverDashboardPage() {
       return
     }
 
+    if (!fromLocation) {
+      alert('Please select From location')
+      return
+    }
+
+    if (!toLocation) {
+      alert('Please select To location')
+      return
+    }
+
     const fromNorm = normalizeLocation(fromLocation)
     const toNorm = normalizeLocation(toLocation)
 
@@ -267,21 +403,15 @@ export default function DriverDashboardPage() {
     let fuelCalculated = false
 
     const fuelRes = await supabase.rpc('get_allowed_fuel_gallons', {
-  p_company_id: companyId,
-  p_from_norm: fromNorm,
-  p_to_norm: toNorm,
-})
-console.log('FUEL RPC RESULT', {
-  companyId,
-  fromNorm,
-  toNorm,
-  data: fuelRes.data,
-  error: fuelRes.error,
-})
-if (!fuelRes.error) {
-  allowedFuelGallons = Number(fuelRes.data || 0)
-  fuelCalculated = allowedFuelGallons > 0
-}
+      p_company_id: companyId,
+      p_from_norm: fromNorm,
+      p_to_norm: toNorm,
+    })
+
+    if (!fuelRes.error) {
+      allowedFuelGallons = Number(fuelRes.data || 0)
+      fuelCalculated = allowedFuelGallons > 0
+    }
 
     const { error } = await supabase.from('trips').insert([
       {
@@ -290,8 +420,8 @@ if (!fuelRes.error) {
         trailer_id: trailerId || null,
         company_id: companyId,
         trip_date: new Date().toISOString().split('T')[0],
-        from_location: fromLocation.trim(),
-        to_location: toLocation.trim(),
+        from_location: fromNorm,
+        to_location: toNorm,
         from_norm: fromNorm,
         to_norm: toNorm,
         trip_allowance: allowance ? Number(allowance) : 0,
@@ -316,6 +446,8 @@ if (!fuelRes.error) {
     setCompanyId('')
     setFromLocation('')
     setToLocation('')
+    setFromOptions([])
+    setToOptions([])
     setAllowance('')
     setRemarks('')
 
@@ -493,7 +625,7 @@ if (!fuelRes.error) {
           <form onSubmit={saveTrip} className="grid gap-4 md:grid-cols-3">
             <select
               value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
+              onChange={(e) => handleCompanyChange(e.target.value)}
               className="rounded-xl border p-3 text-slate-900"
               required
             >
@@ -506,36 +638,66 @@ if (!fuelRes.error) {
             </select>
 
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="From Location"
+              <select
                 value={fromLocation}
                 onChange={(e) => setFromLocation(e.target.value)}
                 className="w-full rounded-xl border p-3 text-slate-900"
                 required
-              />
+                disabled={!companyId}
+              >
+                <option value="">
+                  {companyId ? 'Select From Location' : 'Select Company First'}
+                </option>
+
+                {fromLocation && !fromOptions.includes(fromLocation) && (
+                  <option value={fromLocation}>{fromLocation}</option>
+                )}
+
+                {fromOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 onClick={() => startVoiceInput('from')}
-                className="rounded-xl bg-slate-900 px-4 font-semibold text-white"
+                disabled={!companyId}
+                className="rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50"
               >
                 🎤
               </button>
             </div>
 
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="To Location"
+              <select
                 value={toLocation}
                 onChange={(e) => setToLocation(e.target.value)}
                 className="w-full rounded-xl border p-3 text-slate-900"
                 required
-              />
+                disabled={!companyId}
+              >
+                <option value="">
+                  {companyId ? 'Select To Location' : 'Select Company First'}
+                </option>
+
+                {toLocation && !toOptions.includes(toLocation) && (
+                  <option value={toLocation}>{toLocation}</option>
+                )}
+
+                {toOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 onClick={() => startVoiceInput('to')}
-                className="rounded-xl bg-slate-900 px-4 font-semibold text-white"
+                disabled={!companyId}
+                className="rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50"
               >
                 🎤
               </button>
@@ -649,8 +811,8 @@ if (!fuelRes.error) {
                   <td className="p-3">{trip.trip_date}</td>
                   <td className="p-3">
                     {Array.isArray(trip.companies)
-  ? trip.companies[0]?.company_name || '-'
-  : trip.companies?.company_name || '-'}
+                      ? trip.companies[0]?.company_name || '-'
+                      : trip.companies?.company_name || '-'}
                   </td>
                   <td className="p-3">{trip.from_location}</td>
                   <td className="p-3">{trip.to_location}</td>
