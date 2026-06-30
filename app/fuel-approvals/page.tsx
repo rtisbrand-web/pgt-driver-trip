@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
+type RelationArray<T> = T[] | T | null
+
 type ApprovalRequest = {
   id: string
   vehicle_id: string
@@ -23,9 +25,18 @@ type ApprovalRequest = {
   tank_before_photo_url: string | null
   tank_after_photo_url: string | null
   refuel_photo_url: string | null
-  vehicles: { vehicle_number: string } | null
-  drivers: { driver_name: string } | null
-  refueling_vehicles: { vehicle_number: string; driver_name: string | null } | null
+  vehicles: RelationArray<{ vehicle_number: string }>
+  drivers: RelationArray<{ driver_name: string }>
+  refueling_vehicles: RelationArray<{
+    vehicle_number: string
+    driver_name: string | null
+  }>
+}
+
+function firstRelation<T>(value: RelationArray<T>): T | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] || null
+  return value
 }
 
 export default function FuelApprovalsPage() {
@@ -76,13 +87,15 @@ export default function FuelApprovalsPage() {
       return
     }
 
-    setRequests((data || []) as ApprovalRequest[])
+    setRequests((data || []) as unknown as ApprovalRequest[])
   }
 
   async function approveRequest(request: ApprovalRequest) {
+    const vehicle = firstRelation(request.vehicles)
+
     const confirmApprove = confirm(
       `Approve over fuel request?\n\nVehicle: ${
-        request.vehicles?.vehicle_number || '-'
+        vehicle?.vehicle_number || '-'
       }\nRequested: ${request.requested_gallons} Gallons\nAvailable: ${
         request.allowed_balance_gallons
       } Gallons\nExtra: ${request.extra_gallons} Gallons`
@@ -152,9 +165,11 @@ export default function FuelApprovalsPage() {
   }
 
   async function rejectRequest(request: ApprovalRequest) {
+    const vehicle = firstRelation(request.vehicles)
+
     const confirmReject = confirm(
       `Reject this over fuel request?\n\nVehicle: ${
-        request.vehicles?.vehicle_number || '-'
+        vehicle?.vehicle_number || '-'
       }\nRequested: ${request.requested_gallons} Gallons`
     )
 
@@ -203,7 +218,8 @@ export default function FuelApprovalsPage() {
             Fuel Approval Requests
           </h1>
           <p className="mt-1 text-slate-500">
-            Approve or reject over-fuel requests created from the Refueler app and Fuel Issue screen.
+            Approve or reject over-fuel requests created from the Refueler app
+            and Fuel Issue screen.
           </p>
         </div>
 
@@ -234,106 +250,113 @@ export default function FuelApprovalsPage() {
               </thead>
 
               <tbody>
-                {requests.map((request) => (
-                  <tr key={request.id} className="border-b text-slate-900">
-                    <td className="p-3">
-                      {new Date(request.created_at).toLocaleString()}
-                    </td>
+                {requests.map((request) => {
+                  const vehicle = firstRelation(request.vehicles)
+                  const driver = firstRelation(request.drivers)
+                  const refueler = firstRelation(request.refueling_vehicles)
 
-                    <td className="p-3 font-semibold">
-                      {request.vehicles?.vehicle_number || '-'}
-                    </td>
+                  return (
+                    <tr key={request.id} className="border-b text-slate-900">
+                      <td className="p-3">
+                        {new Date(request.created_at).toLocaleString()}
+                      </td>
 
-                    <td className="p-3">
-                      {request.refueling_vehicles?.vehicle_number
-                        ? `${request.refueling_vehicles.vehicle_number} - ${
-                            request.refueling_vehicles.driver_name || '-'
-                          }`
-                        : '-'}
-                    </td>
+                      <td className="p-3 font-semibold">
+                        {vehicle?.vehicle_number || '-'}
+                      </td>
 
-                    <td className="p-3">
-                      {request.drivers?.driver_name || '-'}
-                    </td>
+                      <td className="p-3">
+                        {refueler?.vehicle_number
+                          ? `${refueler.vehicle_number} - ${
+                              refueler.driver_name || '-'
+                            }`
+                          : '-'}
+                      </td>
 
-                    <td className="p-3">
-                      {Math.max(Number(request.allowed_balance_gallons || 0), 0).toFixed(2)}
-                    </td>
+                      <td className="p-3">{driver?.driver_name || '-'}</td>
 
-                    <td className="p-3 font-semibold">
-                      {Number(request.requested_gallons || 0).toFixed(2)}
-                    </td>
+                      <td className="p-3">
+                        {Math.max(
+                          Number(request.allowed_balance_gallons || 0),
+                          0
+                        ).toFixed(2)}
+                      </td>
 
-                    <td className="p-3 font-bold text-red-600">
-                      {Number(request.extra_gallons || 0).toFixed(2)}
-                    </td>
+                      <td className="p-3 font-semibold">
+                        {Number(request.requested_gallons || 0).toFixed(2)}
+                      </td>
 
-                    <td className="p-3">{request.reason || '-'}</td>
+                      <td className="p-3 font-bold text-red-600">
+                        {Number(request.extra_gallons || 0).toFixed(2)}
+                      </td>
 
-                    <td className="p-3">
-                      {request.gps_map_link ? (
-                        <a
-                          href={request.gps_map_link}
-                          target="_blank"
-                          className="font-semibold text-blue-700 underline"
-                        >
-                          Map
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
+                      <td className="p-3">{request.reason || '-'}</td>
 
-                    <td className="p-3">
-                      <span className={statusBadge(request.status)}>
-                        {request.status}
-                      </span>
-                    </td>
-
-                    <td className="p-3">
-                      {request.status === 'Pending' ? (
-                        <input
-                          type="text"
-                          placeholder="Admin notes"
-                          value={adminNotes[request.id] || ''}
-                          onChange={(e) =>
-                            setAdminNotes({
-                              ...adminNotes,
-                              [request.id]: e.target.value,
-                            })
-                          }
-                          className="min-w-52 rounded-xl border p-2 text-slate-900"
-                        />
-                      ) : (
-                        request.admin_notes || '-'
-                      )}
-                    </td>
-
-                    <td className="p-3">
-                      {request.status === 'Pending' ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => approveRequest(request)}
-                            disabled={processingId === request.id}
-                            className="rounded-lg bg-green-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
+                      <td className="p-3">
+                        {request.gps_map_link ? (
+                          <a
+                            href={request.gps_map_link}
+                            target="_blank"
+                            className="font-semibold text-blue-700 underline"
                           >
-                            Approve
-                          </button>
+                            Map
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
 
-                          <button
-                            onClick={() => rejectRequest(request)}
-                            disabled={processingId === request.id}
-                            className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">Completed</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="p-3">
+                        <span className={statusBadge(request.status)}>
+                          {request.status}
+                        </span>
+                      </td>
+
+                      <td className="p-3">
+                        {request.status === 'Pending' ? (
+                          <input
+                            type="text"
+                            placeholder="Admin notes"
+                            value={adminNotes[request.id] || ''}
+                            onChange={(e) =>
+                              setAdminNotes({
+                                ...adminNotes,
+                                [request.id]: e.target.value,
+                              })
+                            }
+                            className="min-w-52 rounded-xl border p-2 text-slate-900"
+                          />
+                        ) : (
+                          request.admin_notes || '-'
+                        )}
+                      </td>
+
+                      <td className="p-3">
+                        {request.status === 'Pending' ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => approveRequest(request)}
+                              disabled={processingId === request.id}
+                              className="rounded-lg bg-green-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
+                            >
+                              Approve
+                            </button>
+
+                            <button
+                              onClick={() => rejectRequest(request)}
+                              disabled={processingId === request.id}
+                              className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">Completed</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
 
                 {requests.length === 0 && (
                   <tr>
