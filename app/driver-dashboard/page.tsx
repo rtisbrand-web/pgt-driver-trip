@@ -39,6 +39,7 @@ export default function DriverDashboardPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
 
+  const [routeRows, setRouteRows] = useState<FuelRouteRow[]>([])
   const [fromOptions, setFromOptions] = useState<string[]>([])
   const [toOptions, setToOptions] = useState<string[]>([])
 
@@ -139,6 +140,7 @@ export default function DriverDashboardPage() {
   }
 
   async function loadCompanyRoutes(selectedCompanyId: string) {
+    setRouteRows([])
     setFromOptions([])
     setToOptions([])
 
@@ -153,25 +155,49 @@ export default function DriverDashboardPage() {
       return
     }
 
-    const rows = (rpcRes.data || []) as FuelRouteRow[]
+    const rows = ((rpcRes.data || []) as FuelRouteRow[]).map((row) => ({
+      from_location: row.from_location,
+      to_location: row.to_location,
+      from_norm: normalizeLocation(row.from_norm || row.from_location || ''),
+      to_norm: normalizeLocation(row.to_norm || row.to_location || ''),
+    }))
 
     const fromSet = new Set<string>()
-    const toSet = new Set<string>()
 
     rows.forEach((row) => {
-      const fromValue = normalizeLocation(row.from_norm || row.from_location || '')
-      const toValue = normalizeLocation(row.to_norm || row.to_location || '')
-
+      const fromValue = row.from_norm || ''
       if (fromValue) fromSet.add(fromValue)
-      if (toValue) toSet.add(toValue)
     })
 
+    setRouteRows(rows)
     setFromOptions(Array.from(fromSet).sort())
-    setToOptions(Array.from(toSet).sort())
+    setToOptions([])
 
     if (rows.length === 0) {
       alert('No fuel routes found for this company. Please check Fuel Route Master.')
     }
+  }
+
+  function loadToOptionsForFrom(selectedFrom: string, rowsToUse = routeRows) {
+    const fromNorm = normalizeLocation(selectedFrom)
+    const toSet = new Set<string>()
+
+    rowsToUse.forEach((row) => {
+      const rowFrom = normalizeLocation(row.from_norm || row.from_location || '')
+      const rowTo = normalizeLocation(row.to_norm || row.to_location || '')
+
+      if (rowFrom === fromNorm && rowTo) {
+        toSet.add(rowTo)
+      }
+    })
+
+    setToOptions(Array.from(toSet).sort())
+  }
+
+  function handleFromChange(selectedFrom: string) {
+    setFromLocation(selectedFrom)
+    setToLocation('')
+    loadToOptionsForFrom(selectedFrom)
   }
 
   async function handleCompanyChange(newCompanyId: string) {
@@ -333,7 +359,7 @@ export default function DriverDashboardPage() {
 
       if (field === 'from') {
         const selected = selectClosestRouteOption(rawText, fromOptions)
-        setFromLocation(selected)
+        handleFromChange(selected)
       } else {
         const selected = selectClosestRouteOption(rawText, toOptions)
         setToLocation(selected)
@@ -391,6 +417,17 @@ export default function DriverDashboardPage() {
 
     const fromNorm = normalizeLocation(fromLocation)
     const toNorm = normalizeLocation(toLocation)
+
+    const validRoute = routeRows.some((row) => {
+      const rowFrom = normalizeLocation(row.from_norm || row.from_location || '')
+      const rowTo = normalizeLocation(row.to_norm || row.to_location || '')
+      return rowFrom === fromNorm && rowTo === toNorm
+    })
+
+    if (!validRoute) {
+      alert('Selected route is not available in Fuel Route Master. Please select a valid From and To route.')
+      return
+    }
 
     const gpsMapLink =
       gpsLatitude && gpsLongitude
@@ -531,6 +568,24 @@ export default function DriverDashboardPage() {
     await loadTrips(driver.driver_id)
   }
 
+  function getStatusBadge(status: string) {
+    const cleanStatus = status.toLowerCase().trim()
+
+    if (cleanStatus === 'verified') {
+      return 'rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700'
+    }
+
+    if (cleanStatus === 'documents uploaded') {
+      return 'rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700'
+    }
+
+    if (cleanStatus === 'rejected') {
+      return 'rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700'
+    }
+
+    return 'rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700'
+  }
+
   function logout() {
     localStorage.removeItem('pgt_driver')
     window.location.href = '/driver-login'
@@ -640,7 +695,7 @@ export default function DriverDashboardPage() {
             <div className="flex gap-2">
               <select
                 value={fromLocation}
-                onChange={(e) => setFromLocation(e.target.value)}
+                onChange={(e) => handleFromChange(e.target.value)}
                 className="w-full rounded-xl border p-3 text-slate-900"
                 required
                 disabled={!companyId}
@@ -676,10 +731,14 @@ export default function DriverDashboardPage() {
                 onChange={(e) => setToLocation(e.target.value)}
                 className="w-full rounded-xl border p-3 text-slate-900"
                 required
-                disabled={!companyId}
+                disabled={!companyId || !fromLocation}
               >
                 <option value="">
-                  {companyId ? 'Select To Location' : 'Select Company First'}
+                  {!companyId
+                    ? 'Select Company First'
+                    : !fromLocation
+                      ? 'Select From First'
+                      : 'Select To Location'}
                 </option>
 
                 {toLocation && !toOptions.includes(toLocation) && (
@@ -696,7 +755,7 @@ export default function DriverDashboardPage() {
               <button
                 type="button"
                 onClick={() => startVoiceInput('to')}
-                disabled={!companyId}
+                disabled={!companyId || !fromLocation}
                 className="rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50"
               >
                 🎤
@@ -793,21 +852,23 @@ export default function DriverDashboardPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b text-slate-700">
+                <th className="p-3 text-left">S.No</th>
                 <th className="p-3 text-left">Trip No</th>
                 <th className="p-3 text-left">Date</th>
                 <th className="p-3 text-left">Company</th>
                 <th className="p-3 text-left">From</th>
                 <th className="p-3 text-left">To</th>
                 <th className="p-3 text-left">Allowance</th>
-                <th className="p-3 text-left">Documents</th>
+                <th className="p-3 text-left">POD</th>
                 <th className="p-3 text-left">Status</th>
               </tr>
             </thead>
 
             <tbody>
-              {trips.map((trip) => (
+              {trips.map((trip, index) => (
                 <tr key={trip.id} className="border-b text-slate-900">
-                  <td className="p-3 font-semibold">{trip.trip_no}</td>
+                  <td className="p-3 font-semibold">{index + 1}</td>
+                  <td className="p-3 font-semibold text-blue-700">{trip.trip_no}</td>
                   <td className="p-3">{trip.trip_date}</td>
                   <td className="p-3">
                     {Array.isArray(trip.companies)
@@ -820,13 +881,17 @@ export default function DriverDashboardPage() {
                   <td className="p-3">
                     {trip.documents_uploaded ? 'Uploaded' : 'Pending'}
                   </td>
-                  <td className="p-3">{trip.status}</td>
+                  <td className="p-3">
+                    <span className={getStatusBadge(trip.status)}>
+                      {trip.status}
+                    </span>
+                  </td>
                 </tr>
               ))}
 
               {trips.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-slate-500">
+                  <td colSpan={9} className="p-6 text-center text-slate-500">
                     No trips found.
                   </td>
                 </tr>
