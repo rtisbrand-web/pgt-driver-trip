@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
+type RelationArray<T> = T[] | T | null
+
 type FuelEntry = {
   id: string
   bill_no: string | null
@@ -17,8 +19,8 @@ type FuelEntry = {
   fuel_type: string | null
   status: string | null
   remarks: string | null
-  vehicles: { vehicle_number: string } | null
-  drivers: { driver_name: string } | null
+  vehicles: RelationArray<{ vehicle_number: string }>
+  drivers: RelationArray<{ driver_name: string }>
 }
 
 type ApprovalRequest = {
@@ -29,7 +31,7 @@ type ApprovalRequest = {
   extra_gallons: number
   status: string
   reason: string | null
-  vehicles: { vehicle_number: string } | null
+  vehicles: RelationArray<{ vehicle_number: string }>
 }
 
 type Wallet = {
@@ -38,6 +40,12 @@ type Wallet = {
   earned_gallons: number
   issued_gallons: number
   balance_gallons: number
+}
+
+function firstRelation<T>(value: RelationArray<T>): T | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] || null
+  return value
 }
 
 export default function FuelDashboardPage() {
@@ -112,8 +120,8 @@ export default function FuelDashboardPage() {
       return
     }
 
-    setEntries((entriesRes.data || []) as FuelEntry[])
-    setRequests((requestsRes.data || []) as ApprovalRequest[])
+    setEntries((entriesRes.data || []) as unknown as FuelEntry[])
+    setRequests((requestsRes.data || []) as unknown as ApprovalRequest[])
     setWallets((walletsRes.data || []) as Wallet[])
   }
 
@@ -170,7 +178,7 @@ export default function FuelDashboardPage() {
     const map = new Map<string, { vehicle: string; gallons: number }>()
 
     entries.forEach((entry) => {
-      const vehicle = entry.vehicles?.vehicle_number || '-'
+      const vehicle = firstRelation(entry.vehicles)?.vehicle_number || '-'
       const current = map.get(vehicle) || { vehicle, gallons: 0 }
       current.gallons += Number(entry.issued_gallons || 0)
       map.set(vehicle, current)
@@ -306,7 +314,7 @@ export default function FuelDashboardPage() {
                       {new Date(request.created_at).toLocaleString()}
                     </td>
                     <td className="p-3 font-semibold">
-                      {request.vehicles?.vehicle_number || '-'}
+                      {firstRelation(request.vehicles)?.vehicle_number || '-'}
                     </td>
                     <td className="p-3 font-semibold">
                       {Number(request.requested_gallons || 0).toFixed(2)}
@@ -406,9 +414,11 @@ export default function FuelDashboardPage() {
                     {new Date(entry.created_at).toLocaleString()}
                   </td>
                   <td className="p-3 font-semibold">
-                    {entry.vehicles?.vehicle_number || '-'}
+                    {firstRelation(entry.vehicles)?.vehicle_number || '-'}
                   </td>
-                  <td className="p-3">{entry.drivers?.driver_name || '-'}</td>
+                  <td className="p-3">
+                    {firstRelation(entry.drivers)?.driver_name || '-'}
+                  </td>
                   <td className="p-3">
                     <span className={badge(entry.fuel_type || entry.status)}>
                       {entry.fuel_type || entry.status || '-'}

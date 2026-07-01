@@ -107,7 +107,11 @@ export default function RefuelerDashboardPage() {
       .limit(20)
 
     setVehicles(vehiclesRes.data || [])
-    setHistory((historyRes.data || []) as FuelEntry[])
+    setHistory((historyRes.data || []).map((r: any) => ({
+      ...r,
+      vehicles: Array.isArray(r.vehicles) ? r.vehicles[0] ?? null : r.vehicles,
+      drivers: Array.isArray(r.drivers) ? r.drivers[0] ?? null : r.drivers,
+    })))
   }
 
   async function loadVehicleInfo(id: string) {

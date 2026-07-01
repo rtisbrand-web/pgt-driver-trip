@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
+type RelationArray<T> = T[] | T | null
+
 type Vehicle = { id: string; vehicle_number: string }
 type Driver = { id: string; driver_name: string }
 type Company = { id: string; company_name: string }
@@ -19,9 +21,9 @@ type Trip = {
   allowed_fuel_gallons: number | null
   fuel_calculated: boolean | null
   status: string | null
-  vehicles: { vehicle_number: string } | null
-  drivers: { driver_name: string } | null
-  companies: { company_name: string } | null
+  vehicles: RelationArray<{ vehicle_number: string }>
+  drivers: RelationArray<{ driver_name: string }>
+  companies: RelationArray<{ company_name: string }>
 }
 
 type FuelEntry = {
@@ -35,8 +37,8 @@ type FuelEntry = {
   extra_approved_gallons: number | null
   status: string | null
   fuel_type: string | null
-  vehicles: { vehicle_number: string } | null
-  drivers: { driver_name: string } | null
+  vehicles: RelationArray<{ vehicle_number: string }>
+  drivers: RelationArray<{ driver_name: string }>
 }
 
 type ReportRow = {
@@ -49,6 +51,12 @@ type ReportRow = {
   issued: number
   extra: number
   balance: number
+}
+
+function firstRelation<T>(value: RelationArray<T>): T | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] || null
+  return value
 }
 
 export default function FuelConsumptionReportPage() {
@@ -90,9 +98,9 @@ export default function FuelConsumptionReportPage() {
       .eq('is_active', true)
       .order('company_name')
 
-    setVehicles(vehiclesRes.data || [])
-    setDrivers(driversRes.data || [])
-    setCompanies(companiesRes.data || [])
+    setVehicles((vehiclesRes.data || []) as Vehicle[])
+    setDrivers((driversRes.data || []) as Driver[])
+    setCompanies((companiesRes.data || []) as Company[])
   }
 
   async function loadReport() {
@@ -161,8 +169,8 @@ export default function FuelConsumptionReportPage() {
       return
     }
 
-    setTrips((tripRes.data || []) as Trip[])
-    setFuelEntries((fuelRes.data || []) as FuelEntry[])
+    setTrips((tripRes.data || []) as unknown as Trip[])
+    setFuelEntries((fuelRes.data || []) as unknown as FuelEntry[])
   }
 
   function clearFilters() {
@@ -177,12 +185,17 @@ export default function FuelConsumptionReportPage() {
     const map = new Map<string, ReportRow>()
 
     trips.forEach((trip) => {
+      const tripVehicle = firstRelation(trip.vehicles)
+      const tripDriver = firstRelation(trip.drivers)
+      const tripCompany = firstRelation(trip.companies)
+
       const vId = trip.vehicle_id || 'unknown'
+
       const existing = map.get(vId) || {
         vehicleId: vId,
-        vehicle: trip.vehicles?.vehicle_number || '-',
-        driver: trip.drivers?.driver_name || '-',
-        company: trip.companies?.company_name || '-',
+        vehicle: tripVehicle?.vehicle_number || '-',
+        driver: tripDriver?.driver_name || '-',
+        company: tripCompany?.company_name || '-',
         trips: 0,
         earned: 0,
         issued: 0,
@@ -199,11 +212,15 @@ export default function FuelConsumptionReportPage() {
     })
 
     fuelEntries.forEach((entry) => {
+      const entryVehicle = firstRelation(entry.vehicles)
+      const entryDriver = firstRelation(entry.drivers)
+
       const vId = entry.vehicle_id || 'unknown'
+
       const existing = map.get(vId) || {
         vehicleId: vId,
-        vehicle: entry.vehicles?.vehicle_number || '-',
-        driver: entry.drivers?.driver_name || '-',
+        vehicle: entryVehicle?.vehicle_number || '-',
+        driver: entryDriver?.driver_name || '-',
         company: '-',
         trips: 0,
         earned: 0,
@@ -214,6 +231,7 @@ export default function FuelConsumptionReportPage() {
 
       existing.issued += Number(entry.wallet_used_gallons || 0)
       existing.extra += Number(entry.extra_approved_gallons || 0)
+
       map.set(vId, existing)
     })
 
@@ -263,7 +281,9 @@ export default function FuelConsumptionReportPage() {
     ])
 
     const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      )
       .join('\n')
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -453,9 +473,15 @@ export default function FuelConsumptionReportPage() {
                       Total
                     </td>
                     <td className="p-3">{totals.trips}</td>
-                    <td className="p-3 text-green-700">{totals.earned.toFixed(2)}</td>
-                    <td className="p-3 text-blue-700">{totals.issued.toFixed(2)}</td>
-                    <td className="p-3 text-red-600">{totals.extra.toFixed(2)}</td>
+                    <td className="p-3 text-green-700">
+                      {totals.earned.toFixed(2)}
+                    </td>
+                    <td className="p-3 text-blue-700">
+                      {totals.issued.toFixed(2)}
+                    </td>
+                    <td className="p-3 text-red-600">
+                      {totals.extra.toFixed(2)}
+                    </td>
                     <td className="p-3">{totals.balance.toFixed(2)}</td>
                   </tr>
                 </tfoot>
