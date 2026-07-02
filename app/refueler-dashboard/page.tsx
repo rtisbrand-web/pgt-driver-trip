@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type RefuelerSession = {
@@ -107,11 +107,13 @@ export default function RefuelerDashboardPage() {
       .limit(20)
 
     setVehicles(vehiclesRes.data || [])
-    setHistory((historyRes.data || []).map((r: any) => ({
-      ...r,
-      vehicles: Array.isArray(r.vehicles) ? r.vehicles[0] ?? null : r.vehicles,
-      drivers: Array.isArray(r.drivers) ? r.drivers[0] ?? null : r.drivers,
-    })))
+    setHistory(
+      (historyRes.data || []).map((r: any) => ({
+        ...r,
+        vehicles: Array.isArray(r.vehicles) ? r.vehicles[0] ?? null : r.vehicles,
+        drivers: Array.isArray(r.drivers) ? r.drivers[0] ?? null : r.drivers,
+      }))
+    )
   }
 
   async function loadVehicleInfo(id: string) {
@@ -360,231 +362,340 @@ export default function RefuelerDashboardPage() {
     window.location.href = '/refueler-login'
   }
 
+  const gpsReady = gpsStatus.toLowerCase().includes('captured')
+  const balanceGallons = Number(wallet?.balance_gallons || 0)
+  const selectedVehicleNumber =
+    vehicles.find((vehicle) => vehicle.id === vehicleId)?.vehicle_number || '-'
+
+  const latestHistory = useMemo(() => history.slice(0, 5), [history])
+
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="rounded-2xl bg-slate-950 p-6 text-white shadow">
-          <h1 className="text-2xl font-bold">Refueler Dashboard</h1>
-          <p className="mt-2 text-slate-300">
-            Welcome, {refueler?.driver_name || '-'}
-          </p>
-          <p className="text-slate-300">
-            Refueling Vehicle: {refueler?.vehicle_number || '-'}
-          </p>
-
-          <button
-            onClick={logout}
-            className="mt-4 rounded-xl bg-red-600 px-5 py-2 font-semibold text-white"
-          >
-            Logout
-          </button>
-        </div>
-
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            GPS Location
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border p-3 text-slate-900">
-              {gpsStatus}
-            </div>
-
-            <div className="rounded-xl border p-3 text-slate-900">
-              Lat: {gpsLatitude || '-'} / Long: {gpsLongitude || '-'}
+    <main className="min-h-screen bg-[#eef3f8] text-slate-900">
+      <div className="mx-auto max-w-md pb-8">
+        <div className="rounded-b-[34px] bg-[#070d22] px-5 pb-6 pt-7 text-white shadow-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
+                PGT Fuel System
+              </p>
+              <h1 className="mt-2 text-3xl font-black leading-tight">
+                Refueler
+              </h1>
+              <p className="mt-2 text-sm text-slate-300">
+                {refueler?.driver_name || '-'} • Vehicle{' '}
+                {refueler?.vehicle_number || '-'}
+              </p>
             </div>
 
             <button
-              onClick={captureGps}
-              className="rounded-xl bg-green-700 p-3 font-semibold text-white"
+              onClick={logout}
+              className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/30"
             >
-              Refresh GPS
+              Logout
             </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-3xl bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs text-slate-300">GPS</p>
+              <p
+                className={`mt-1 text-sm font-bold ${
+                  gpsReady ? 'text-emerald-300' : 'text-amber-300'
+                }`}
+              >
+                {gpsReady ? '● Connected' : '● Required'}
+              </p>
+            </div>
+
+            <div className="rounded-3xl bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs text-slate-300">Wallet</p>
+              <p className="mt-1 text-xl font-black text-emerald-300">
+                {balanceGallons.toFixed(2)}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            Issue Fuel
-          </h2>
+        <div className="px-4">
+          <button
+            onClick={captureGps}
+            className={`mt-5 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-base font-black text-white shadow-lg ${
+              gpsReady
+                ? 'bg-emerald-600 shadow-emerald-900/20'
+                : 'bg-amber-600 shadow-amber-900/20'
+            }`}
+          >
+            📍 {gpsReady ? 'GPS Captured' : 'Capture GPS'}
+          </button>
 
-          <form onSubmit={issueFuel} className="grid gap-4 md:grid-cols-3">
-            <select
-              value={vehicleId}
-              onChange={(e) => loadVehicleInfo(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            >
-              <option value="">Select Vehicle</option>
-              {vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.vehicle_number}
-                </option>
+          <section className="mt-5 overflow-hidden rounded-[28px] bg-white shadow-lg shadow-slate-200">
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-5 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
+                Fuel Wallet
+              </p>
+              <div className="mt-3 flex items-end justify-between">
+                <div>
+                  <h2 className="text-4xl font-black">
+                    {balanceGallons.toFixed(2)}
+                  </h2>
+                  <p className="mt-1 text-sm text-emerald-100">
+                    Gallons remaining
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/15 px-4 py-3 text-right">
+                  <p className="text-xs text-emerald-100">Vehicle</p>
+                  <p className="text-lg font-black">{selectedVehicleNumber}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-4">
+              <div className="rounded-2xl bg-slate-100 p-4">
+                <p className="text-xs text-slate-500">Driver</p>
+                <p className="mt-1 truncate text-lg font-black">{driverName}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-100 p-4">
+                <p className="text-xs text-slate-500">Meter Diff</p>
+                <p className="mt-1 text-lg font-black">
+                  {meterDifference().toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Operation
+                </p>
+                <h2 className="mt-1 text-2xl font-black">Issue Fuel</h2>
+              </div>
+              <div className="rounded-2xl bg-[#070d22] px-4 py-3 text-sm font-bold text-white">
+                ⛽
+              </div>
+            </div>
+
+            <form onSubmit={issueFuel} className="space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-bold text-slate-600">
+                  Vehicle
+                </span>
+                <select
+                  value={vehicleId}
+                  onChange={(e) => loadVehicleInfo(e.target.value)}
+                  className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-lg font-bold outline-none focus:border-emerald-500"
+                  required
+                >
+                  <option value="">Select Vehicle</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.vehicle_number}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Issue Gallons
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={gallons}
+                    onChange={(e) => setGallons(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-lg font-bold outline-none focus:border-emerald-500"
+                    required
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Odometer
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Optional"
+                    value={odometerReading}
+                    onChange={(e) => setOdometerReading(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-lg font-bold outline-none focus:border-emerald-500"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Meter 1st
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Start"
+                    value={meter1Reading}
+                    onChange={(e) => setMeter1Reading(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-lg font-bold outline-none focus:border-emerald-500"
+                    required
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Meter 2nd
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="End"
+                    value={meter2Reading}
+                    onChange={(e) => setMeter2Reading(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-lg font-bold outline-none focus:border-emerald-500"
+                    required
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-bold text-slate-600">
+                  Remarks
+                </span>
+                <input
+                  type="text"
+                  placeholder="Optional remarks"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-semibold outline-none focus:border-emerald-500"
+                />
+              </label>
+
+              <div>
+                <p className="mb-3 text-sm font-bold text-slate-600">
+                  Photos
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <PhotoPicker
+                    title="Meter 1"
+                    file={meter1Photo}
+                    onChange={setMeter1Photo}
+                  />
+                  <PhotoPicker
+                    title="Meter 2"
+                    file={meter2Photo}
+                    onChange={setMeter2Photo}
+                  />
+                  <PhotoPicker
+                    title="Refuel"
+                    file={refuelPhoto}
+                    onChange={setRefuelPhoto}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="mt-2 h-16 w-full rounded-3xl bg-[#070d22] text-lg font-black text-white shadow-xl shadow-slate-300 disabled:opacity-60"
+              >
+                {saving ? 'Saving Fuel...' : '⛽ Issue Fuel'}
+              </button>
+            </form>
+          </section>
+
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Recent
+                </p>
+                <h2 className="mt-1 text-2xl font-black">Fuel History</h2>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                Last 5
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {latestHistory.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-blue-700">
+                        {entry.bill_no || 'Pending Bill'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(entry.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                      {entry.status || '-'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-white p-2">
+                      <p className="text-[10px] text-slate-400">Vehicle</p>
+                      <p className="text-sm font-black">
+                        {entry.vehicles?.vehicle_number || '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white p-2">
+                      <p className="text-[10px] text-slate-400">Gallons</p>
+                      <p className="text-sm font-black">
+                        {Number(entry.issued_gallons || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white p-2">
+                      <p className="text-[10px] text-slate-400">After</p>
+                      <p className="text-sm font-black">
+                        {Number(entry.balance_after || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </select>
 
-            <div className="rounded-xl border p-3 text-slate-900">
-              Driver: {driverName}
-            </div>
-
-            <div className="rounded-xl border p-3 text-slate-900">
-              Balance: {Number(wallet?.balance_gallons || 0).toFixed(2)} Gallons
-            </div>
-
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Issue Gallons"
-              value={gallons}
-              onChange={(e) => setGallons(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            />
-
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Meter 1st Reading"
-              value={meter1Reading}
-              onChange={(e) => setMeter1Reading(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            />
-
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Meter 2nd Reading"
-              value={meter2Reading}
-              onChange={(e) => setMeter2Reading(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            />
-
-            <div className="rounded-xl border p-3 text-slate-900">
-              Meter Difference: {meterDifference().toFixed(2)}
-            </div>
-
-            <input
-              type="text"
-              placeholder="Odometer Reading Optional"
-              value={odometerReading}
-              onChange={(e) => setOdometerReading(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            />
-
-            <input
-              type="text"
-              placeholder="Remarks Optional"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            />
-
-            <div>
-              <label className="text-sm text-slate-600">
-                Meter 1st Reading Photo Optional
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setMeter1Photo(e.target.files?.[0] || null)}
-                className="mt-1 w-full rounded-xl border p-3 text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm text-slate-600">
-                Meter 2nd Reading Photo Optional
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setMeter2Photo(e.target.files?.[0] || null)}
-                className="mt-1 w-full rounded-xl border p-3 text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm text-slate-600">
-                Vehicle Refueling Photo Optional
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setRefuelPhoto(e.target.files?.[0] || null)}
-                className="mt-1 w-full rounded-xl border p-3 text-slate-900"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-blue-900 p-3 font-semibold text-white disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Issue Fuel'}
-            </button>
-          </form>
-        </div>
-
-        <div className="mt-6 overflow-auto rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            My Fuel Issue History
-          </h2>
-
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-slate-700">
-                <th className="p-3 text-left">Bill No</th>
-                <th className="p-3 text-left">Date</th>
-                <th className="p-3 text-left">Vehicle</th>
-                <th className="p-3 text-left">Driver</th>
-                <th className="p-3 text-left">Gallons</th>
-                <th className="p-3 text-left">Before</th>
-                <th className="p-3 text-left">After</th>
-                <th className="p-3 text-left">Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {history.map((entry) => (
-                <tr key={entry.id} className="border-b text-slate-900">
-                  <td className="p-3 font-bold text-blue-700">
-                    {entry.bill_no || '-'}
-                  </td>
-                  <td className="p-3">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </td>
-                  <td className="p-3">
-                    {entry.vehicles?.vehicle_number || '-'}
-                  </td>
-                  <td className="p-3">
-                    {entry.drivers?.driver_name || '-'}
-                  </td>
-                  <td className="p-3 font-semibold">
-                    {Number(entry.issued_gallons || 0).toFixed(2)}
-                  </td>
-                  <td className="p-3">
-                    {Number(entry.balance_before || 0).toFixed(2)}
-                  </td>
-                  <td className="p-3">
-                    {Number(entry.balance_after || 0).toFixed(2)}
-                  </td>
-                  <td className="p-3">{entry.status || '-'}</td>
-                </tr>
-              ))}
-
-              {history.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-slate-500">
-                    No fuel issues found.
-                  </td>
-                </tr>
+              {latestHistory.length === 0 && (
+                <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+                  No fuel issues found.
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          </section>
         </div>
       </div>
     </main>
+  )
+}
+
+function PhotoPicker({
+  title,
+  file,
+  onChange,
+}: {
+  title: string
+  file: File | null
+  onChange: (file: File | null) => void
+}) {
+  return (
+    <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 text-center">
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] || null)}
+      />
+      <span className="text-2xl">📷</span>
+      <span className="mt-1 text-xs font-black text-slate-700">{title}</span>
+      <span className="mt-1 max-w-full truncate text-[10px] text-slate-400">
+        {file ? file.name : 'Tap'}
+      </span>
+    </label>
   )
 }
