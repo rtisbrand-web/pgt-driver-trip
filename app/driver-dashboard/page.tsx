@@ -537,6 +537,14 @@ export default function DriverDashboardPage() {
     window.location.href = '/driver-login'
   }
 
+  function openChecklist() {
+    window.location.href = '/checklist'
+  }
+
+  function openBreakdown() {
+    window.location.href = '/breakdown'
+  }
+
   function getCompanyName(trip: Trip) {
     if (Array.isArray(trip.companies)) return trip.companies[0]?.company_name || '-'
     return trip.companies?.company_name || '-'
@@ -598,6 +606,41 @@ export default function DriverDashboardPage() {
           >
             📍 {gpsReady ? 'GPS Captured' : 'Capture GPS'}
           </button>
+
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Safety & Support
+              </p>
+              <h2 className="mt-1 text-2xl font-black">Driver Tools</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={openChecklist}
+                className="min-h-28 rounded-3xl bg-emerald-600 p-4 text-left text-white shadow-lg shadow-emerald-900/20"
+              >
+                <span className="text-3xl">✅</span>
+                <p className="mt-3 text-base font-black">Daily Checklist</p>
+                <p className="mt-1 text-xs font-semibold text-emerald-100">
+                  Vehicle safety check
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={openBreakdown}
+                className="min-h-28 rounded-3xl bg-red-600 p-4 text-left text-white shadow-lg shadow-red-900/20"
+              >
+                <span className="text-3xl">🚨</span>
+                <p className="mt-3 text-base font-black">Breakdown Alert</p>
+                <p className="mt-1 text-xs font-semibold text-red-100">
+                  Report vehicle issue
+                </p>
+              </button>
+            </div>
+          </section>
 
           <section className="mt-5 overflow-hidden rounded-[28px] bg-white shadow-lg shadow-slate-200">
             <div className="bg-gradient-to-br from-blue-950 to-[#070d22] p-5 text-white">
