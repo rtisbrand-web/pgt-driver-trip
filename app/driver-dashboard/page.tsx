@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type Vehicle = { id: string; vehicle_number: string }
@@ -211,78 +211,24 @@ export default function DriverDashboardPage() {
     const text = input.toLowerCase().trim()
 
     const corrections: { keywords: string[]; value: string }[] = [
-      {
-        value: 'KIZAD',
-        keywords: ['kizad', 'kizaat', 'lzzat', 'izzat', 'pizza hut', 'keyzad', 'kezad'],
-      },
-      {
-        value: 'AL QUOZ',
-        keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'alcohol', 'al kooz', 'al coz'],
-      },
-      {
-        value: 'JEBEL ALI',
-        keywords: ['jebel ali', 'jabal ali', 'jabel ali', 'jab loli', 'j ali', 'j.ali'],
-      },
-      {
-        value: 'JAFZA',
-        keywords: ['jafza', 'jebel ali free zone', 'jabal ali free zone'],
-      },
-      {
-        value: 'KHALIFA PORT',
-        keywords: ['khalifa port', 'kalifa port', 'califa port'],
-      },
-      {
-        value: 'MUSSAFAH',
-        keywords: ['mussafah', 'musaffah', 'musafa'],
-      },
-      {
-        value: 'ICAD',
-        keywords: ['icad', 'i cad', 'eye cad'],
-      },
-      {
-        value: 'DIP',
-        keywords: ['dip', 'd i p', 'dubai investment park'],
-      },
-      {
-        value: 'DUBAI SOUTH',
-        keywords: ['dubai south', 'south dubai'],
-      },
-      {
-        value: 'DUBAI INDUSTRIAL CITY',
-        keywords: ['dubai industrial city', 'industrial city dubai', 'dic'],
-      },
-      {
-        value: 'ABU DHABI',
-        keywords: ['abu dhabi', 'abudhabi', 'abu dabi', 'abu dhbai', 'abu dhbhi', 'abu dhbi'],
-      },
-      {
-        value: 'DUBAI',
-        keywords: ['dubai', 'dubi'],
-      },
-      {
-        value: 'SHARJAH',
-        keywords: ['sharjah', 'sharja', 'sher'],
-      },
-      {
-        value: 'AJMAN',
-        keywords: ['ajman', 'ajmaan'],
-      },
-      {
-        value: 'FUJAIRAH',
-        keywords: ['fujairah', 'fujaira', 'fujeirah'],
-      },
-      {
-        value: 'RAS AL KHAIMAH',
-        keywords: ['ras al khaimah', 'ras al khaima', 'rak'],
-      },
-      {
-        value: 'UMM AL QUWAIN',
-        keywords: ['umm al quwain', 'um al quwain', 'uaq'],
-      },
-      {
-        value: 'AL AIN',
-        keywords: ['al ain', 'alain'],
-      },
+      { value: 'KIZAD', keywords: ['kizad', 'kizaat', 'lzzat', 'izzat', 'pizza hut', 'keyzad', 'kezad'] },
+      { value: 'AL QUOZ', keywords: ['al quoz', 'al qouz', 'alcos', 'al cohal', 'alcohol', 'al kooz', 'al coz'] },
+      { value: 'JEBEL ALI', keywords: ['jebel ali', 'jabal ali', 'jabel ali', 'jab loli', 'j ali', 'j.ali'] },
+      { value: 'JAFZA', keywords: ['jafza', 'jebel ali free zone', 'jabal ali free zone'] },
+      { value: 'KHALIFA PORT', keywords: ['khalifa port', 'kalifa port', 'califa port'] },
+      { value: 'MUSSAFAH', keywords: ['mussafah', 'musaffah', 'musafa'] },
+      { value: 'ICAD', keywords: ['icad', 'i cad', 'eye cad'] },
+      { value: 'DIP', keywords: ['dip', 'd i p', 'dubai investment park'] },
+      { value: 'DUBAI SOUTH', keywords: ['dubai south', 'south dubai'] },
+      { value: 'DUBAI INDUSTRIAL CITY', keywords: ['dubai industrial city', 'industrial city dubai', 'dic'] },
+      { value: 'ABU DHABI', keywords: ['abu dhabi', 'abudhabi', 'abu dabi', 'abu dhbai', 'abu dhbhi', 'abu dhbi'] },
+      { value: 'DUBAI', keywords: ['dubai', 'dubi'] },
+      { value: 'SHARJAH', keywords: ['sharjah', 'sharja', 'sher'] },
+      { value: 'AJMAN', keywords: ['ajman', 'ajmaan'] },
+      { value: 'FUJAIRAH', keywords: ['fujairah', 'fujaira', 'fujeirah'] },
+      { value: 'RAS AL KHAIMAH', keywords: ['ras al khaimah', 'ras al khaima', 'rak'] },
+      { value: 'UMM AL QUWAIN', keywords: ['umm al quwain', 'um al quwain', 'uaq'] },
+      { value: 'AL AIN', keywords: ['al ain', 'alain'] },
     ]
 
     for (const item of corrections) {
@@ -572,18 +518,18 @@ export default function DriverDashboardPage() {
     const cleanStatus = status.toLowerCase().trim()
 
     if (cleanStatus === 'verified') {
-      return 'rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700'
+      return 'rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700'
     }
 
     if (cleanStatus === 'documents uploaded') {
-      return 'rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700'
+      return 'rounded-full bg-blue-100 px-3 py-1 text-[11px] font-black text-blue-700'
     }
 
     if (cleanStatus === 'rejected') {
-      return 'rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700'
+      return 'rounded-full bg-red-100 px-3 py-1 text-[11px] font-black text-red-700'
     }
 
-    return 'rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700'
+    return 'rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-700'
   }
 
   function logout() {
@@ -591,315 +537,443 @@ export default function DriverDashboardPage() {
     window.location.href = '/driver-login'
   }
 
+  function getCompanyName(trip: Trip) {
+    if (Array.isArray(trip.companies)) return trip.companies[0]?.company_name || '-'
+    return trip.companies?.company_name || '-'
+  }
+
+  const currentVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
+  const currentTrailer = trailers.find((trailer) => trailer.id === trailerId)
+  const gpsReady = gpsStatus.toLowerCase().includes('captured')
+  const todayTrips = trips.filter(
+    (trip) => trip.trip_date === new Date().toISOString().split('T')[0]
+  ).length
+  const pendingPod = trips.filter(
+    (trip) => !trip.documents_uploaded && (trip.status === 'Pending' || trip.status === 'Rejected')
+  ).length
+
+  const latestTrips = useMemo(() => trips.slice(0, 6), [trips])
+
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl bg-slate-950 p-6 text-white shadow">
-          <h1 className="text-2xl font-bold">PGT Driver Dashboard</h1>
-          <p className="mt-2 text-slate-300">
-            Welcome, {driver?.driver_name}
-          </p>
+    <main className="min-h-screen bg-[#eef3f8] text-slate-900">
+      <div className="mx-auto max-w-md pb-8">
+        <header className="rounded-b-[36px] bg-[#070d22] px-5 pb-6 pt-7 text-white shadow-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
+                PGT Driver App
+              </p>
+              <h1 className="mt-2 text-3xl font-black leading-tight">
+                {driver?.driver_name || 'Driver'}
+              </h1>
+              <p className="mt-2 text-sm text-slate-300">
+                🚛 {currentVehicle?.vehicle_number || 'No Vehicle'} • Trailer{' '}
+                {currentTrailer?.trailer_number || '-'}
+              </p>
+            </div>
 
+            <button
+              onClick={logout}
+              className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/30"
+            >
+              Logout
+            </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            <StatCard title="Today" value={todayTrips.toString()} />
+            <StatCard title="Pending POD" value={pendingPod.toString()} />
+            <StatCard title="GPS" value={gpsReady ? 'ON' : 'OFF'} green={gpsReady} />
+          </div>
+        </header>
+
+        <div className="px-4">
           <button
-            onClick={logout}
-            className="mt-4 rounded-xl bg-red-600 px-5 py-2 font-semibold text-white"
+            onClick={captureGps}
+            className={`mt-5 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-base font-black text-white shadow-lg ${
+              gpsReady
+                ? 'bg-emerald-600 shadow-emerald-900/20'
+                : 'bg-amber-600 shadow-amber-900/20'
+            }`}
           >
-            Logout
+            📍 {gpsReady ? 'GPS Captured' : 'Capture GPS'}
           </button>
-        </div>
 
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            My Vehicle / Trailer
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <select
-              value={vehicleId}
-              onChange={(e) => setVehicleId(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            >
-              <option value="">Select Vehicle</option>
-              {vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.vehicle_number}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={trailerId}
-              onChange={(e) => setTrailerId(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            >
-              <option value="">Select Trailer</option>
-              {trailers.map((trailer) => (
-                <option key={trailer.id} value={trailer.id}>
-                  {trailer.trailer_number}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={saveDriverAssignment}
-              className="rounded-xl bg-slate-900 p-3 font-semibold text-white"
-            >
-              Save Vehicle / Trailer
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            GPS Location
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border p-3 text-slate-900">
-              {gpsStatus}
+          <section className="mt-5 overflow-hidden rounded-[28px] bg-white shadow-lg shadow-slate-200">
+            <div className="bg-gradient-to-br from-blue-950 to-[#070d22] p-5 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">
+                Assignment
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-white/10 p-4">
+                  <p className="text-xs text-slate-300">Vehicle</p>
+                  <p className="mt-1 truncate text-xl font-black">
+                    {currentVehicle?.vehicle_number || '-'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-4">
+                  <p className="text-xs text-slate-300">Trailer</p>
+                  <p className="mt-1 truncate text-xl font-black">
+                    {currentTrailer?.trailer_number || '-'}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-xl border p-3 text-slate-900">
-              Lat: {gpsLatitude || '-'} / Long: {gpsLongitude || '-'}
-            </div>
-
-            <button
-              onClick={captureGps}
-              className="rounded-xl bg-green-700 p-3 font-semibold text-white"
-            >
-              Refresh GPS
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            New Trip Entry
-          </h2>
-
-          <form onSubmit={saveTrip} className="grid gap-4 md:grid-cols-3">
-            <select
-              value={companyId}
-              onChange={(e) => handleCompanyChange(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            >
-              <option value="">Select Company</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.company_name}
-                </option>
-              ))}
-            </select>
-
-            <div className="flex gap-2">
+            <div className="space-y-3 p-4">
               <select
-                value={fromLocation}
-                onChange={(e) => handleFromChange(e.target.value)}
-                className="w-full rounded-xl border p-3 text-slate-900"
-                required
-                disabled={!companyId}
+                value={vehicleId}
+                onChange={(e) => setVehicleId(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
               >
-                <option value="">
-                  {companyId ? 'Select From Location' : 'Select Company First'}
-                </option>
+                <option value="">Select Vehicle</option>
+                {vehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>
+                    {vehicle.vehicle_number}
+                  </option>
+                ))}
+              </select>
 
-                {fromLocation && !fromOptions.includes(fromLocation) && (
-                  <option value={fromLocation}>{fromLocation}</option>
-                )}
-
-                {fromOptions.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
+              <select
+                value={trailerId}
+                onChange={(e) => setTrailerId(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
+              >
+                <option value="">Select Trailer</option>
+                {trailers.map((trailer) => (
+                  <option key={trailer.id} value={trailer.id}>
+                    {trailer.trailer_number}
                   </option>
                 ))}
               </select>
 
               <button
-                type="button"
-                onClick={() => startVoiceInput('from')}
-                disabled={!companyId}
-                className="rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50"
+                onClick={saveDriverAssignment}
+                className="h-14 w-full rounded-2xl bg-[#070d22] text-base font-black text-white shadow-lg shadow-slate-300"
               >
-                🎤
+                Save Vehicle / Trailer
               </button>
             </div>
+          </section>
 
-            <div className="flex gap-2">
-              <select
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Operation
+                </p>
+                <h2 className="mt-1 text-2xl font-black">New Trip</h2>
+              </div>
+              <div className="rounded-2xl bg-[#070d22] px-4 py-3 text-sm font-bold text-white">
+                🚛
+              </div>
+            </div>
+
+            <form onSubmit={saveTrip} className="space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-bold text-slate-600">
+                  Company
+                </span>
+                <select
+                  value={companyId}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
+                  required
+                >
+                  <option value="">Select Company</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.company_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <RouteSelect
+                title="From"
+                value={fromLocation}
+                disabled={!companyId}
+                placeholder={companyId ? 'Select From Location' : 'Select Company First'}
+                options={fromOptions}
+                onChange={handleFromChange}
+                onVoice={() => startVoiceInput('from')}
+              />
+
+              <RouteSelect
+                title="To"
                 value={toLocation}
-                onChange={(e) => setToLocation(e.target.value)}
-                className="w-full rounded-xl border p-3 text-slate-900"
-                required
                 disabled={!companyId || !fromLocation}
-              >
-                <option value="">
-                  {!companyId
+                placeholder={
+                  !companyId
                     ? 'Select Company First'
                     : !fromLocation
                       ? 'Select From First'
-                      : 'Select To Location'}
-                </option>
+                      : 'Select To Location'
+                }
+                options={toOptions}
+                onChange={setToLocation}
+                onVoice={() => startVoiceInput('to')}
+              />
 
-                {toLocation && !toOptions.includes(toLocation) && (
-                  <option value={toLocation}>{toLocation}</option>
-                )}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Allowance
+                  </span>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={allowance}
+                    onChange={(e) => setAllowance(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
+                  />
+                </label>
 
-                {toOptions.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
-                  </option>
-                ))}
-              </select>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-600">
+                    Remarks
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Optional"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-semibold outline-none focus:border-emerald-500"
+                  />
+                </label>
+              </div>
 
               <button
-                type="button"
-                onClick={() => startVoiceInput('to')}
-                disabled={!companyId || !fromLocation}
-                className="rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50"
+                type="submit"
+                disabled={saving}
+                className="h-16 w-full rounded-3xl bg-emerald-600 text-lg font-black text-white shadow-xl shadow-emerald-900/20 disabled:opacity-60"
               >
-                🎤
+                {saving ? 'Submitting Trip...' : '✅ Submit Trip'}
               </button>
+            </form>
+          </section>
+
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Delivery
+                </p>
+                <h2 className="mt-1 text-2xl font-black">Upload POD</h2>
+              </div>
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700">
+                Required
+              </span>
             </div>
 
-            <input
-              type="number"
-              placeholder="Trip Allowance"
-              value={allowance}
-              onChange={(e) => setAllowance(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            />
+            <form onSubmit={uploadDocuments} className="space-y-4">
+              <select
+                value={uploadTripId}
+                onChange={(e) => setUploadTripId(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-blue-500"
+                required
+              >
+                <option value="">Select Pending Trip</option>
+                {trips
+                  .filter((trip) => trip.status === 'Pending' || trip.status === 'Rejected')
+                  .map((trip) => (
+                    <option key={trip.id} value={trip.id}>
+                      Trip #{trip.trip_no} - {trip.from_location} to {trip.to_location}
+                    </option>
+                  ))}
+              </select>
 
-            <input
-              type="text"
-              placeholder="Remarks"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            />
+              <select
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-blue-500"
+              >
+                <option value="POD">POD</option>
+                <option value="Delivery Note">Delivery Note</option>
+                <option value="Customer Stamp">Customer Stamp</option>
+                <option value="Delivery Photo">Delivery Photo</option>
+                <option value="Gate Pass">Gate Pass</option>
+                <option value="Other">Other</option>
+              </select>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-blue-900 p-3 font-semibold text-white disabled:opacity-60"
-            >
-              {saving ? 'Submitting...' : 'Submit Trip'}
-            </button>
-          </form>
-        </div>
+              <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 text-center">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf"
+                  onChange={(e) => setFiles(e.target.files)}
+                  className="hidden"
+                  required
+                />
+                <span className="text-3xl">📷</span>
+                <span className="mt-1 text-sm font-black text-slate-700">
+                  Tap to upload POD / Photos
+                </span>
+                <span className="mt-1 text-xs text-slate-400">
+                  {files?.length ? `${files.length} file(s) selected` : 'Image or PDF'}
+                </span>
+              </label>
 
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">
-            Delivery Complete - Upload Documents
-          </h2>
+              <button
+                type="submit"
+                disabled={uploading}
+                className="h-16 w-full rounded-3xl bg-blue-900 text-lg font-black text-white shadow-xl shadow-blue-900/20 disabled:opacity-60"
+              >
+                {uploading ? 'Uploading...' : '📤 Submit Delivery'}
+              </button>
+            </form>
+          </section>
 
-          <form onSubmit={uploadDocuments} className="grid gap-4 md:grid-cols-4">
-            <select
-              value={uploadTripId}
-              onChange={(e) => setUploadTripId(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            >
-              <option value="">Select Trip</option>
-              {trips
-                .filter((trip) => trip.status === 'Pending' || trip.status === 'Rejected')
-                .map((trip) => (
-                  <option key={trip.id} value={trip.id}>
-                    Trip #{trip.trip_no} - {trip.from_location} to {trip.to_location}
-                  </option>
-                ))}
-            </select>
+          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Recent
+                </p>
+                <h2 className="mt-1 text-2xl font-black">My Trips</h2>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                Last 6
+              </span>
+            </div>
 
-            <select
-              value={documentType}
-              onChange={(e) => setDocumentType(e.target.value)}
-              className="rounded-xl border p-3 text-slate-900"
-            >
-              <option value="POD">POD</option>
-              <option value="Delivery Note">Delivery Note</option>
-              <option value="Customer Stamp">Customer Stamp</option>
-              <option value="Delivery Photo">Delivery Photo</option>
-              <option value="Gate Pass">Gate Pass</option>
-              <option value="Other">Other</option>
-            </select>
-
-            <input
-              type="file"
-              multiple
-              accept="image/*,.pdf"
-              onChange={(e) => setFiles(e.target.files)}
-              className="rounded-xl border p-3 text-slate-900"
-              required
-            />
-
-            <button
-              type="submit"
-              disabled={uploading}
-              className="rounded-xl bg-green-700 p-3 font-semibold text-white disabled:opacity-60"
-            >
-              {uploading ? 'Uploading...' : 'Submit Delivery'}
-            </button>
-          </form>
-
-          <p className="mt-3 text-sm text-slate-500">
-            After document upload, this trip will go to admin for verification.
-          </p>
-        </div>
-
-        <div className="mt-6 overflow-auto rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">My Trips</h2>
-
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-slate-700">
-                <th className="p-3 text-left">S.No</th>
-                <th className="p-3 text-left">Trip No</th>
-                <th className="p-3 text-left">Date</th>
-                <th className="p-3 text-left">Company</th>
-                <th className="p-3 text-left">From</th>
-                <th className="p-3 text-left">To</th>
-                <th className="p-3 text-left">Allowance</th>
-                <th className="p-3 text-left">POD</th>
-                <th className="p-3 text-left">Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {trips.map((trip, index) => (
-                <tr key={trip.id} className="border-b text-slate-900">
-                  <td className="p-3 font-semibold">{index + 1}</td>
-                  <td className="p-3 font-semibold text-blue-700">{trip.trip_no}</td>
-                  <td className="p-3">{trip.trip_date}</td>
-                  <td className="p-3">
-                    {Array.isArray(trip.companies)
-                      ? trip.companies[0]?.company_name || '-'
-                      : trip.companies?.company_name || '-'}
-                  </td>
-                  <td className="p-3">{trip.from_location}</td>
-                  <td className="p-3">{trip.to_location}</td>
-                  <td className="p-3">{trip.trip_allowance}</td>
-                  <td className="p-3">
-                    {trip.documents_uploaded ? 'Uploaded' : 'Pending'}
-                  </td>
-                  <td className="p-3">
+            <div className="space-y-3">
+              {latestTrips.map((trip, index) => (
+                <div
+                  key={trip.id}
+                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-blue-700">
+                        #{index + 1} • Trip {trip.trip_no}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {trip.trip_date} • {getCompanyName(trip)}
+                      </p>
+                    </div>
                     <span className={getStatusBadge(trip.status)}>
                       {trip.status}
                     </span>
-                  </td>
-                </tr>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black">
+                          {trip.from_location}
+                        </p>
+                        <p className="text-[10px] text-slate-400">From</p>
+                      </div>
+                      <span className="text-xl">→</span>
+                      <div className="min-w-0 text-right">
+                        <p className="truncate text-sm font-black">
+                          {trip.to_location}
+                        </p>
+                        <p className="text-[10px] text-slate-400">To</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-between text-xs font-bold text-slate-500">
+                    <span>Allowance: {trip.trip_allowance}</span>
+                    <span>
+                      POD: {trip.documents_uploaded ? 'Uploaded' : 'Pending'}
+                    </span>
+                  </div>
+                </div>
               ))}
 
-              {trips.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="p-6 text-center text-slate-500">
-                    No trips found.
-                  </td>
-                </tr>
+              {latestTrips.length === 0 && (
+                <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+                  No trips found.
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          </section>
         </div>
       </div>
     </main>
+  )
+}
+
+function StatCard({
+  title,
+  value,
+  green,
+}: {
+  title: string
+  value: string
+  green?: boolean
+}) {
+  return (
+    <div className="rounded-3xl bg-white/10 p-4 text-center backdrop-blur">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-300">
+        {title}
+      </p>
+      <p
+        className={`mt-1 text-xl font-black ${
+          green ? 'text-emerald-300' : 'text-white'
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function RouteSelect({
+  title,
+  value,
+  options,
+  placeholder,
+  disabled,
+  onChange,
+  onVoice,
+}: {
+  title: string
+  value: string
+  options: string[]
+  placeholder: string
+  disabled: boolean
+  onChange: (value: string) => void
+  onVoice: () => void
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold text-slate-600">
+        {title}
+      </span>
+      <div className="flex gap-2">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500 disabled:opacity-60"
+          required
+          disabled={disabled}
+        >
+          <option value="">{placeholder}</option>
+
+          {value && !options.includes(value) && (
+            <option value={value}>{value}</option>
+          )}
+
+          {options.map((location) => (
+            <option key={location} value={location}>
+              {location}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={onVoice}
+          disabled={disabled}
+          className="h-14 w-16 rounded-2xl bg-[#070d22] text-xl font-black text-white disabled:opacity-50"
+        >
+          🎤
+        </button>
+      </div>
+    </label>
   )
 }
