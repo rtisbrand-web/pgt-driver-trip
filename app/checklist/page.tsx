@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+
+type Lang = 'en' | 'ur' | 'hi'
+type Status = 'OK' | 'FAIL' | 'NA'
 
 type DriverSession = {
   driver_id: string
@@ -9,76 +12,282 @@ type DriverSession = {
   mobile: string
 }
 
-type Vehicle = { id: string; vehicle_number: string }
-type Trailer = { id: string; trailer_number: string }
+type Vehicle = {
+  id: string
+  vehicle_number: string
+}
+
+type Trailer = {
+  id: string
+  trailer_number: string
+}
 
 type ChecklistItem = {
   key: string
-  label: string
-  status: 'OK' | 'NOT_OK' | 'NA'
+  en: string
+  ur: string
+  hi: string
+  status: Status
+  remarks: string
+  photo: File | null
 }
 
 type ChecklistSection = {
-  title: string
+  key: string
   icon: string
+  en: string
+  ur: string
+  hi: string
   items: ChecklistItem[]
 }
 
-const defaultSections: ChecklistSection[] = [
-  {
-    title: 'Mechanical',
-    icon: '🔧',
-    items: [
-      { key: 'engine_oil', label: 'Engine Oil Level', status: 'OK' },
-      { key: 'coolant', label: 'Coolant / Water Level', status: 'OK' },
-      { key: 'brake_system', label: 'Brake System', status: 'OK' },
-      { key: 'tyres', label: 'Tyres Condition', status: 'OK' },
-      { key: 'wheel_nuts', label: 'Wheel Nuts', status: 'OK' },
-    ],
+type LabelSet = {
+  title: string
+  subtitle: string
+  chooseLanguage: string
+  back: string
+  gpsCaptured: string
+  captureGps: string
+  vehicleDetails: string
+  selectVehicle: string
+  selectTrailer: string
+  ok: string
+  fail: string
+  na: string
+  failRemarks: string
+  photo: string
+  evidence: string
+  remarks: string
+  signature: string
+  clearSignature: string
+  submit: string
+  submitting: string
+  total: string
+  issues: string
+  tap: string
+  front: string
+  rear: string
+  left: string
+  right: string
+  tyres: string
+  dashboard: string
+  engine: string
+  extra: string
+}
+
+const L: Record<Lang, LabelSet> = {
+  en: {
+    title: 'Vehicle Daily Checklist',
+    subtitle: 'Driver safety inspection report',
+    chooseLanguage: 'Choose Language',
+    back: 'Back',
+    gpsCaptured: 'GPS Captured',
+    captureGps: 'Capture GPS',
+    vehicleDetails: 'Vehicle Details',
+    selectVehicle: 'Select Vehicle',
+    selectTrailer: 'Select Trailer Optional',
+    ok: 'OK',
+    fail: 'FAIL',
+    na: 'N/A',
+    failRemarks: 'Fail remarks required',
+    photo: 'Photo',
+    evidence: 'Evidence Photos',
+    remarks: 'General Remarks',
+    signature: 'Driver Signature',
+    clearSignature: 'Clear Signature',
+    submit: 'Submit Checklist',
+    submitting: 'Submitting...',
+    total: 'Total',
+    issues: 'Issues',
+    tap: 'Tap',
+    front: 'Front',
+    rear: 'Rear',
+    left: 'Left',
+    right: 'Right',
+    tyres: 'Tyres',
+    dashboard: 'Dashboard',
+    engine: 'Engine',
+    extra: 'Extra',
   },
-  {
-    title: 'Electrical',
-    icon: '💡',
-    items: [
-      { key: 'head_lights', label: 'Head Lights', status: 'OK' },
-      { key: 'brake_lights', label: 'Brake Lights', status: 'OK' },
-      { key: 'indicators', label: 'Indicators / Hazard', status: 'OK' },
-      { key: 'horn', label: 'Horn', status: 'OK' },
-      { key: 'battery', label: 'Battery Condition', status: 'OK' },
-    ],
+  ur: {
+    title: 'گاڑی کی روزانہ چیک لسٹ',
+    subtitle: 'ڈرائیور سیفٹی انسپیکشن رپورٹ',
+    chooseLanguage: 'زبان منتخب کریں',
+    back: 'واپس',
+    gpsCaptured: 'GPS محفوظ ہو گیا',
+    captureGps: 'GPS محفوظ کریں',
+    vehicleDetails: 'گاڑی کی تفصیل',
+    selectVehicle: 'گاڑی منتخب کریں',
+    selectTrailer: 'ٹریلر منتخب کریں',
+    ok: 'ٹھیک',
+    fail: 'خراب',
+    na: 'لاگو نہیں',
+    failRemarks: 'خرابی کی تفصیل لازمی ہے',
+    photo: 'تصویر',
+    evidence: 'ثبوت تصاویر',
+    remarks: 'عمومی ریمارکس',
+    signature: 'ڈرائیور دستخط',
+    clearSignature: 'دستخط صاف کریں',
+    submit: 'چیک لسٹ جمع کریں',
+    submitting: 'جمع ہو رہی ہے...',
+    total: 'کل',
+    issues: 'مسائل',
+    tap: 'کلک',
+    front: 'سامنے',
+    rear: 'پیچھے',
+    left: 'بائیں',
+    right: 'دائیں',
+    tyres: 'ٹائر',
+    dashboard: 'ڈیش بورڈ',
+    engine: 'انجن',
+    extra: 'اضافی',
   },
-  {
-    title: 'Safety & PPE',
-    icon: '🦺',
-    items: [
-      { key: 'fire_extinguisher', label: 'Fire Extinguisher', status: 'OK' },
-      { key: 'first_aid', label: 'First Aid Box', status: 'OK' },
-      { key: 'safety_cones', label: 'Safety Cones', status: 'OK' },
-      { key: 'helmet', label: 'Helmet / Safety Shoes', status: 'OK' },
-      { key: 'reflective_jacket', label: 'Reflective Jacket', status: 'OK' },
-    ],
+  hi: {
+    title: 'वाहन दैनिक चेकलिस्ट',
+    subtitle: 'ड्राइवर सुरक्षा निरीक्षण रिपोर्ट',
+    chooseLanguage: 'भाषा चुनें',
+    back: 'वापस',
+    gpsCaptured: 'GPS कैप्चर हो गया',
+    captureGps: 'GPS कैप्चर करें',
+    vehicleDetails: 'वाहन विवरण',
+    selectVehicle: 'वाहन चुनें',
+    selectTrailer: 'ट्रेलर वैकल्पिक',
+    ok: 'ठीक',
+    fail: 'खराब',
+    na: 'लागू नहीं',
+    failRemarks: 'खराबी की टिप्पणी जरूरी है',
+    photo: 'फोटो',
+    evidence: 'प्रमाण फोटो',
+    remarks: 'सामान्य टिप्पणी',
+    signature: 'ड्राइवर हस्ताक्षर',
+    clearSignature: 'हस्ताक्षर साफ करें',
+    submit: 'चेकलिस्ट सबमिट करें',
+    submitting: 'सबमिट हो रहा है...',
+    total: 'कुल',
+    issues: 'समस्या',
+    tap: 'टैप',
+    front: 'आगे',
+    rear: 'पीछे',
+    left: 'बाएं',
+    right: 'दाएं',
+    tyres: 'टायर',
+    dashboard: 'डैशबोर्ड',
+    engine: 'इंजन',
+    extra: 'अतिरिक्त',
   },
-  {
-    title: 'Cargo & Securement',
-    icon: '⛓️',
-    items: [
-      { key: 'lashing_belts', label: 'Lashing Belts', status: 'OK' },
-      { key: 'chains', label: 'Chains / Clamps', status: 'OK' },
-      { key: 'trailer_floor', label: 'Trailer Floor Condition', status: 'OK' },
-      { key: 'load_safety', label: 'Load Safety Area', status: 'OK' },
-      { key: 'tailgate', label: 'Tail Gate / Locks', status: 'OK' },
-    ],
-  },
-]
+}
+
+function makeItem(key: string, en: string, ur: string, hi: string): ChecklistItem {
+  return { key, en, ur, hi, status: 'OK', remarks: '', photo: null }
+}
+
+function makeSections(): ChecklistSection[] {
+  return [
+    {
+      key: 'mechanical',
+      icon: '🔧',
+      en: 'Mechanical',
+      ur: 'مکینیکل',
+      hi: 'मैकेनिकल',
+      items: [
+        makeItem('engine_oil', 'Engine Oil Level', 'انجن آئل لیول', 'इंजन ऑयल लेवल'),
+        makeItem('coolant', 'Coolant / Water Level', 'کولنٹ / پانی لیول', 'कूलेंट / पानी लेवल'),
+        makeItem('brake_system', 'Brake System', 'بریک سسٹم', 'ब्रेक सिस्टम'),
+        makeItem('air_pressure', 'Air Pressure / Air Leak', 'ایئر پریشر / ایئر لیک', 'एयर प्रेशर / एयर लीक'),
+        makeItem('oil_leak', 'Oil / Diesel Leak', 'آئل / ڈیزل لیک', 'ऑयल / डीजल लीक'),
+        makeItem('suspension', 'Suspension / Spring', 'سسپنشن / اسپرنگ', 'सस्पेंशन / स्प्रिंग'),
+        makeItem('steering', 'Steering Condition', 'اسٹیرنگ کنڈیشن', 'स्टीयरिंग कंडीशन'),
+        makeItem('gear_clutch', 'Gear / Clutch', 'گیئر / کلچ', 'गियर / क्लच'),
+      ],
+    },
+    {
+      key: 'electrical',
+      icon: '💡',
+      en: 'Electrical',
+      ur: 'الیکٹریکل',
+      hi: 'इलेक्ट्रिकल',
+      items: [
+        makeItem('head_lights', 'Head Lights', 'ہیڈ لائٹس', 'हेड लाइट'),
+        makeItem('brake_lights', 'Brake Lights', 'بریک لائٹس', 'ब्रेक लाइट'),
+        makeItem('indicators', 'Indicators / Hazard', 'انڈیکیٹر / ہیزرڈ', 'इंडिकेटर / हैज़र्ड'),
+        makeItem('reverse_light', 'Reverse Light', 'ریورس لائٹ', 'रिवर्स लाइट'),
+        makeItem('horn', 'Horn', 'ہارن', 'हॉर्न'),
+        makeItem('battery', 'Battery Condition', 'بیٹری کنڈیشن', 'बैटरी कंडीशन'),
+        makeItem('wipers', 'Wipers / Washer', 'وائپر / واشر', 'वाइपर / वॉशर'),
+        makeItem('dashboard_warning', 'Dashboard Warning Lights', 'ڈیش بورڈ وارننگ لائٹس', 'डैशबोर्ड वार्निंग लाइट'),
+      ],
+    },
+    {
+      key: 'safety',
+      icon: '🛡️',
+      en: 'Safety',
+      ur: 'سیفٹی',
+      hi: 'सेफ्टी',
+      items: [
+        makeItem('fire_extinguisher', 'Fire Extinguisher', 'فائر ایکسٹنگوشر', 'फायर एक्सटिंग्विशर'),
+        makeItem('first_aid', 'First Aid Box', 'فرسٹ ایڈ باکس', 'फर्स्ट एड बॉक्स'),
+        makeItem('safety_cones', 'Safety Cones', 'سیفٹی کونز', 'सेफ्टी कोन'),
+        makeItem('triangle', 'Emergency Triangle', 'ایمرجنسی ٹرائی اینگل', 'इमरजेंसी ट्रायंगल'),
+        makeItem('seat_belt', 'Seat Belt', 'سیٹ بیلٹ', 'सीट बेल्ट'),
+        makeItem('mirrors', 'Mirrors', 'مررز', 'मिरर'),
+        makeItem('number_plate', 'Number Plate / Reflector', 'نمبر پلیٹ / ریفلیکٹر', 'नंबर प्लेट / रिफ्लेक्टर'),
+      ],
+    },
+    {
+      key: 'ppe',
+      icon: '🦺',
+      en: 'PPE',
+      ur: 'پی پی ای',
+      hi: 'पीपीई',
+      items: [
+        makeItem('helmet', 'Safety Helmet', 'سیفٹی ہیلمٹ', 'सेफ्टी हेलमेट'),
+        makeItem('safety_shoes', 'Safety Shoes', 'سیفٹی شوز', 'सेफ्टी शूज़'),
+        makeItem('reflective_jacket', 'Reflective Jacket', 'ریفلیکٹو جیکٹ', 'रिफ्लेक्टिव जैकेट'),
+        makeItem('gloves', 'Safety Gloves', 'سیفٹی گلوز', 'सेफ्टी ग्लव्स'),
+        makeItem('eye_protection', 'Eye Protection', 'آئی پروٹیکشن', 'आई प्रोटेक्शन'),
+      ],
+    },
+    {
+      key: 'cargo_securement',
+      icon: '⛓️',
+      en: 'Cargo & Securement',
+      ur: 'کارگو اور سکیورمنٹ',
+      hi: 'कार्गो और सिक्योरमेंट',
+      items: [
+        makeItem('lashing_belts', 'Lashing Belts', 'لیشنگ بیلٹس', 'लैशिंग बेल्ट'),
+        makeItem('chains_clamps', 'Chains / Clamps', 'چینز / کلیمپس', 'चेन / क्लैम्प'),
+        makeItem('trailer_floor', 'Trailer Floor Condition', 'ٹریلر فلور کنڈیشن', 'ट्रेलर फ्लोर कंडीशन'),
+        makeItem('tailgate_locks', 'Tail Gate / Locks', 'ٹیل گیٹ / لاکس', 'टेल गेट / लॉक'),
+        makeItem('load_area', 'Load Area Safe', 'لوڈ ایریا محفوظ', 'लोड एरिया सुरक्षित'),
+      ],
+    },
+    {
+      key: 'documents',
+      icon: '📄',
+      en: 'Documents',
+      ur: 'دستاویزات',
+      hi: 'डॉक्यूमेंट्स',
+      items: [
+        makeItem('registration', 'Vehicle Registration / Mulkiya', 'رجسٹریشن / ملکیہ', 'रजिस्ट्रेशन / मुलकिया'),
+        makeItem('license', 'Driving License', 'ڈرائیونگ لائسنس', 'ड्राइविंग लाइसेंस'),
+        makeItem('insurance', 'Insurance', 'انشورنس', 'इंश्योरेंस'),
+        makeItem('site_permit', 'Route / Site Permit', 'روٹ / سائٹ پرمٹ', 'रूट / साइट परमिट'),
+        makeItem('delivery_docs', 'Delivery Documents', 'ڈیلیوری ڈاکومنٹس', 'डिलीवरी डॉक्यूमेंट्स'),
+      ],
+    },
+  ]
+}
 
 export default function ChecklistPage() {
   const [driver, setDriver] = useState<DriverSession | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trailers, setTrailers] = useState<Trailer[]>([])
+  const [language, setLanguage] = useState<Lang>('en')
+  const [languageSelected, setLanguageSelected] = useState(false)
 
   const [vehicleId, setVehicleId] = useState('')
   const [trailerId, setTrailerId] = useState('')
-  const [sections, setSections] = useState<ChecklistSection[]>(defaultSections)
+  const [sections, setSections] = useState<ChecklistSection[]>(makeSections())
   const [remarks, setRemarks] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -86,13 +295,29 @@ export default function ChecklistPage() {
   const [gpsLongitude, setGpsLongitude] = useState<number | null>(null)
   const [gpsStatus, setGpsStatus] = useState('GPS not captured')
 
-  const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null)
+  const [vehicleFrontPhoto, setVehicleFrontPhoto] = useState<File | null>(null)
+  const [vehicleRearPhoto, setVehicleRearPhoto] = useState<File | null>(null)
+  const [leftSidePhoto, setLeftSidePhoto] = useState<File | null>(null)
+  const [rightSidePhoto, setRightSidePhoto] = useState<File | null>(null)
   const [tyrePhoto, setTyrePhoto] = useState<File | null>(null)
+  const [dashboardPhoto, setDashboardPhoto] = useState<File | null>(null)
+  const [enginePhoto, setEnginePhoto] = useState<File | null>(null)
   const [extraPhoto, setExtraPhoto] = useState<File | null>(null)
 
-  useEffect(() => {
-    const savedDriver = localStorage.getItem('pgt_driver')
+  const [signatureData, setSignatureData] = useState('')
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const isDrawingRef = useRef(false)
 
+  const t = L[language]
+
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('pgt_checklist_language') as Lang | null
+    if (savedLanguage && ['en', 'ur', 'hi'].includes(savedLanguage)) {
+      setLanguage(savedLanguage)
+      setLanguageSelected(true)
+    }
+
+    const savedDriver = localStorage.getItem('pgt_driver')
     if (!savedDriver) {
       window.location.href = '/driver-login'
       return
@@ -132,6 +357,12 @@ export default function ChecklistPage() {
     setTrailers(trailersRes.data || [])
   }
 
+  function chooseLanguage(code: Lang) {
+    setLanguage(code)
+    setLanguageSelected(true)
+    localStorage.setItem('pgt_checklist_language', code)
+  }
+
   function captureGps() {
     if (!navigator.geolocation) {
       setGpsStatus('GPS not supported')
@@ -151,22 +382,26 @@ export default function ChecklistPage() {
     )
   }
 
-  function updateItem(
-    sectionIndex: number,
-    itemIndex: number,
-    status: ChecklistItem['status']
-  ) {
-    setSections((current) =>
-      current.map((section, sIndex) => {
-        if (sIndex !== sectionIndex) return section
+  function sectionTitle(section: ChecklistSection) {
+    return section[language]
+  }
 
-        return {
-          ...section,
-          items: section.items.map((item, iIndex) =>
-            iIndex === itemIndex ? { ...item, status } : item
-          ),
-        }
-      })
+  function itemLabel(item: ChecklistItem) {
+    return item[language]
+  }
+
+  function updateItem(sectionIndex: number, itemIndex: number, patch: Partial<ChecklistItem>) {
+    setSections((current) =>
+      current.map((section, sIndex) =>
+        sIndex !== sectionIndex
+          ? section
+          : {
+              ...section,
+              items: section.items.map((item, iIndex) =>
+                iIndex === itemIndex ? { ...item, ...patch } : item
+              ),
+            }
+      )
     )
   }
 
@@ -178,28 +413,81 @@ export default function ChecklistPage() {
 
     const uploadRes = await supabase.storage.from('trip-documents').upload(path, file)
 
-    if (uploadRes.error) {
-      throw new Error(uploadRes.error.message)
-    }
+    if (uploadRes.error) throw new Error(uploadRes.error.message)
 
     return supabase.storage.from('trip-documents').getPublicUrl(path).data.publicUrl
   }
 
-  async function submitChecklist(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  function getCanvasPoint(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
 
-    if (!driver) return
+  function startDrawing(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current
+    const point = getCanvasPoint(e)
+    if (!canvas || !point) return
+    isDrawingRef.current = true
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.moveTo(point.x, point.y)
+  }
 
+  function draw(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingRef.current) return
+    const canvas = canvasRef.current
+    const point = getCanvasPoint(e)
+    if (!canvas || !point) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.lineTo(point.x, point.y)
+    ctx.stroke()
+    setSignatureData(canvas.toDataURL('image/png'))
+  }
+
+  function stopDrawing() {
+    isDrawingRef.current = false
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setSignatureData('')
+  }
+
+  function validateChecklist() {
     if (!vehicleId) {
-      alert('Please select vehicle')
-      return
+      alert(t.selectVehicle)
+      return false
     }
 
-    const notOkItems = sections
-      .flatMap((section) =>
-        section.items.map((item) => ({ ...item, section: section.title }))
-      )
-      .filter((item) => item.status === 'NOT_OK')
+    const failWithoutRemarks = sections
+      .flatMap((section) => section.items)
+      .find((item) => item.status === 'FAIL' && !item.remarks.trim())
+
+    if (failWithoutRemarks) {
+      alert(`${t.failRemarks}: ${failWithoutRemarks.en}`)
+      return false
+    }
+
+    return true
+  }
+
+  async function submitChecklist(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!driver) return
+    if (!validateChecklist()) return
+
+    const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
+    const selectedTrailer = trailers.find((trailer) => trailer.id === trailerId)
 
     const gpsMapLink =
       gpsLatitude && gpsLongitude
@@ -209,26 +497,92 @@ export default function ChecklistPage() {
     setSaving(true)
 
     try {
-      const vehiclePhotoUrl = await uploadPhoto(vehiclePhoto, 'vehicle')
-      const tyrePhotoUrl = await uploadPhoto(tyrePhoto, 'tyre')
-      const extraPhotoUrl = await uploadPhoto(extraPhoto, 'extra')
+      const savedSections = []
+
+      for (const section of sections) {
+        const savedItems = []
+        for (const checkItem of section.items) {
+          const photoUrl = await uploadPhoto(checkItem.photo, checkItem.key)
+          savedItems.push({
+            key: checkItem.key,
+            label: itemLabel(checkItem),
+            status: checkItem.status,
+            remarks: checkItem.remarks.trim() || null,
+            photo_url: photoUrl,
+          })
+        }
+        savedSections.push({
+          key: section.key,
+          title: sectionTitle(section),
+          items: savedItems,
+        })
+      }
+
+      const frontUrl = await uploadPhoto(vehicleFrontPhoto, 'vehicle-front')
+      const rearUrl = await uploadPhoto(vehicleRearPhoto, 'vehicle-rear')
+      const leftUrl = await uploadPhoto(leftSidePhoto, 'left-side')
+      const rightUrl = await uploadPhoto(rightSidePhoto, 'right-side')
+      const tyreUrl = await uploadPhoto(tyrePhoto, 'tyres')
+      const dashboardUrl = await uploadPhoto(dashboardPhoto, 'dashboard')
+      const engineUrl = await uploadPhoto(enginePhoto, 'engine')
+      const extraUrl = await uploadPhoto(extraPhoto, 'extra')
+
+      const photoUrls = [
+        frontUrl,
+        rearUrl,
+        leftUrl,
+        rightUrl,
+        tyreUrl,
+        dashboardUrl,
+        engineUrl,
+        extraUrl,
+      ].filter(Boolean)
+
+      const failItems = savedSections.flatMap((section) =>
+        section.items
+          .filter((checkItem) => checkItem.status === 'FAIL')
+          .map((checkItem) => ({
+            section: section.title,
+            key: checkItem.key,
+            label: checkItem.label,
+            remarks: checkItem.remarks,
+            photo_url: checkItem.photo_url,
+          }))
+      )
+
+      const reportNo = `VDCL-${new Date().getFullYear()}-${Date.now()}`
 
       const { error } = await supabase.from('driver_checklists').insert([
         {
           driver_id: driver.driver_id,
+          driver_name_snapshot: driver.driver_name,
+          driver_mobile_snapshot: driver.mobile,
           vehicle_id: vehicleId,
+          vehicle_no_snapshot: selectedVehicle?.vehicle_number || null,
           trailer_id: trailerId || null,
+          trailer_no_snapshot: selectedTrailer?.trailer_number || null,
+          language,
           checklist_date: new Date().toISOString().split('T')[0],
-          checklist_data: sections,
-          not_ok_count: notOkItems.length,
-          status: notOkItems.length > 0 ? 'Attention Required' : 'OK',
-          remarks: remarks || null,
+          checklist_time: new Date().toISOString(),
+          checklist_data: savedSections,
+          mechanical_data: savedSections.find((section) => section.key === 'mechanical')?.items || [],
+          electrical_data: savedSections.find((section) => section.key === 'electrical')?.items || [],
+          safety_data: savedSections.find((section) => section.key === 'safety')?.items || [],
+          ppe_data: savedSections.find((section) => section.key === 'ppe')?.items || [],
+          fail_items: failItems,
+          fail_count: failItems.length,
+          not_ok_count: failItems.length,
+          status: failItems.length > 0 ? 'Attention Required' : 'OK',
+          remarks: remarks.trim() || null,
           gps_latitude: gpsLatitude,
           gps_longitude: gpsLongitude,
           gps_map_link: gpsMapLink,
-          vehicle_photo_url: vehiclePhotoUrl,
-          tyre_photo_url: tyrePhotoUrl,
-          extra_photo_url: extraPhotoUrl,
+          signature_data: signatureData || null,
+          vehicle_photo_url: frontUrl,
+          tyre_photo_url: tyreUrl,
+          extra_photo_url: extraUrl,
+          photo_urls: photoUrls,
+          report_no: reportNo,
         },
       ])
 
@@ -237,13 +591,19 @@ export default function ChecklistPage() {
         return
       }
 
-      alert('Daily vehicle checklist submitted successfully.')
+      alert(`Checklist submitted successfully. Report No: ${reportNo}`)
 
-      setSections(defaultSections)
+      setSections(makeSections())
       setRemarks('')
-      setVehiclePhoto(null)
+      setVehicleFrontPhoto(null)
+      setVehicleRearPhoto(null)
+      setLeftSidePhoto(null)
+      setRightSidePhoto(null)
       setTyrePhoto(null)
+      setDashboardPhoto(null)
+      setEnginePhoto(null)
       setExtraPhoto(null)
+      clearSignature()
       captureGps()
     } catch (err: any) {
       alert(err.message)
@@ -256,19 +616,43 @@ export default function ChecklistPage() {
     window.location.href = '/driver-dashboard'
   }
 
-  const gpsReady = gpsStatus.toLowerCase().includes('captured')
   const totalItems = sections.reduce((sum, section) => sum + section.items.length, 0)
   const okItems = sections.reduce(
-    (sum, section) => sum + section.items.filter((item) => item.status === 'OK').length,
+    (sum, section) => sum + section.items.filter((checkItem) => checkItem.status === 'OK').length,
     0
   )
-  const notOkItems = sections.reduce(
-    (sum, section) => sum + section.items.filter((item) => item.status === 'NOT_OK').length,
+  const failItemsCount = sections.reduce(
+    (sum, section) => sum + section.items.filter((checkItem) => checkItem.status === 'FAIL').length,
     0
   )
-
+  const gpsReady = gpsStatus.toLowerCase().includes('captured')
   const selectedVehicleNumber =
     vehicles.find((vehicle) => vehicle.id === vehicleId)?.vehicle_number || '-'
+
+  if (!languageSelected) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#070d22] p-5 text-white">
+        <div className="w-full max-w-md rounded-[34px] bg-white p-6 text-slate-900 shadow-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">
+            PGT Driver App
+          </p>
+          <h1 className="mt-3 text-3xl font-black">{L.en.chooseLanguage}</h1>
+
+          <div className="mt-6 space-y-3">
+            <button onClick={() => chooseLanguage('en')} className="h-16 w-full rounded-2xl bg-[#070d22] text-lg font-black text-white">
+              🇬🇧 English
+            </button>
+            <button onClick={() => chooseLanguage('ur')} className="h-16 w-full rounded-2xl bg-[#070d22] text-lg font-black text-white">
+              🇵🇰 اردو
+            </button>
+            <button onClick={() => chooseLanguage('hi')} className="h-16 w-full rounded-2xl bg-[#070d22] text-lg font-black text-white">
+              🇮🇳 हिन्दी
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-[#eef3f8] text-slate-900">
@@ -277,13 +661,13 @@ export default function ChecklistPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
-                Vehicle Daily Checklist
+                {t.title}
               </p>
               <h1 className="mt-2 text-3xl font-black leading-tight">
                 Safety Check
               </h1>
               <p className="mt-2 text-sm text-slate-300">
-                {driver?.driver_name || 'Driver'} • Vehicle {selectedVehicleNumber}
+                {driver?.driver_name || '-'} • {selectedVehicleNumber}
               </p>
             </div>
 
@@ -291,14 +675,14 @@ export default function ChecklistPage() {
               onClick={goBack}
               className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold text-white"
             >
-              Back
+              {t.back}
             </button>
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-3">
-            <StatCard title="Total" value={totalItems.toString()} />
-            <StatCard title="OK" value={okItems.toString()} green />
-            <StatCard title="Issues" value={notOkItems.toString()} red />
+            <StatCard title={t.total} value={totalItems.toString()} />
+            <StatCard title={t.ok} value={okItems.toString()} green />
+            <StatCard title={t.issues} value={failItemsCount.toString()} red />
           </div>
         </header>
 
@@ -311,16 +695,16 @@ export default function ChecklistPage() {
                 : 'bg-amber-600 shadow-amber-900/20'
             }`}
           >
-            📍 {gpsReady ? 'GPS Captured' : 'Capture GPS'}
+            📍 {gpsReady ? t.gpsCaptured : t.captureGps}
           </button>
 
           <form onSubmit={submitChecklist} className="mt-5 space-y-5">
             <section className="rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Assignment
+                  Report Information
                 </p>
-                <h2 className="mt-1 text-2xl font-black">Vehicle Details</h2>
+                <h2 className="mt-1 text-2xl font-black">{t.vehicleDetails}</h2>
               </div>
 
               <div className="space-y-3">
@@ -330,7 +714,7 @@ export default function ChecklistPage() {
                   className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
                   required
                 >
-                  <option value="">Select Vehicle</option>
+                  <option value="">{t.selectVehicle}</option>
                   {vehicles.map((vehicle) => (
                     <option key={vehicle.id} value={vehicle.id}>
                       {vehicle.vehicle_number}
@@ -343,7 +727,7 @@ export default function ChecklistPage() {
                   onChange={(e) => setTrailerId(e.target.value)}
                   className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-bold outline-none focus:border-emerald-500"
                 >
-                  <option value="">Select Trailer Optional</option>
+                  <option value="">{t.selectTrailer}</option>
                   {trailers.map((trailer) => (
                     <option key={trailer.id} value={trailer.id}>
                       {trailer.trailer_number}
@@ -355,48 +739,67 @@ export default function ChecklistPage() {
 
             {sections.map((section, sectionIndex) => (
               <section
-                key={section.title}
+                key={section.key}
                 className="rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200"
               >
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      {section.icon} Section
-                    </p>
-                    <h2 className="mt-1 text-2xl font-black">{section.title}</h2>
-                  </div>
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    {section.icon} Inspection
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black">{section[language]}</h2>
                 </div>
 
                 <div className="space-y-3">
-                  {section.items.map((item, itemIndex) => (
+                  {section.items.map((checkItem, itemIndex) => (
                     <div
-                      key={item.key}
+                      key={checkItem.key}
                       className="rounded-2xl border border-slate-100 bg-slate-50 p-3"
                     >
                       <p className="mb-3 text-sm font-black text-slate-700">
-                        {item.label}
+                        {checkItem[language]}
                       </p>
 
                       <div className="grid grid-cols-3 gap-2">
                         <StatusButton
-                          label="OK"
-                          active={item.status === 'OK'}
+                          label={t.ok}
+                          active={checkItem.status === 'OK'}
                           color="green"
-                          onClick={() => updateItem(sectionIndex, itemIndex, 'OK')}
+                          onClick={() => updateItem(sectionIndex, itemIndex, { status: 'OK' })}
                         />
                         <StatusButton
-                          label="Not OK"
-                          active={item.status === 'NOT_OK'}
+                          label={t.fail}
+                          active={checkItem.status === 'FAIL'}
                           color="red"
-                          onClick={() => updateItem(sectionIndex, itemIndex, 'NOT_OK')}
+                          onClick={() => updateItem(sectionIndex, itemIndex, { status: 'FAIL' })}
                         />
                         <StatusButton
-                          label="N/A"
-                          active={item.status === 'NA'}
+                          label={t.na}
+                          active={checkItem.status === 'NA'}
                           color="slate"
-                          onClick={() => updateItem(sectionIndex, itemIndex, 'NA')}
+                          onClick={() => updateItem(sectionIndex, itemIndex, { status: 'NA' })}
                         />
                       </div>
+
+                      {checkItem.status === 'FAIL' && (
+                        <div className="mt-3 space-y-3">
+                          <textarea
+                            value={checkItem.remarks}
+                            onChange={(e) =>
+                              updateItem(sectionIndex, itemIndex, { remarks: e.target.value })
+                            }
+                            placeholder={t.failRemarks}
+                            className="min-h-20 w-full rounded-2xl border border-red-200 bg-white p-3 text-sm font-semibold outline-none focus:border-red-500"
+                          />
+
+                          <PhotoPicker
+                            title={`${t.photo} (${t.fail})`}
+                            file={checkItem.photo}
+                            onChange={(file) =>
+                              updateItem(sectionIndex, itemIndex, { photo: file })
+                            }
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -406,23 +809,51 @@ export default function ChecklistPage() {
             <section className="rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Evidence
+                  {t.evidence}
                 </p>
-                <h2 className="mt-1 text-2xl font-black">Photos</h2>
+                <h2 className="mt-1 text-2xl font-black">{t.photo}</h2>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <PhotoPicker title="Vehicle" file={vehiclePhoto} onChange={setVehiclePhoto} />
-                <PhotoPicker title="Tyre" file={tyrePhoto} onChange={setTyrePhoto} />
-                <PhotoPicker title="Extra" file={extraPhoto} onChange={setExtraPhoto} />
+              <div className="grid grid-cols-2 gap-3">
+                <PhotoPicker title={t.front} file={vehicleFrontPhoto} onChange={setVehicleFrontPhoto} />
+                <PhotoPicker title={t.rear} file={vehicleRearPhoto} onChange={setVehicleRearPhoto} />
+                <PhotoPicker title={t.left} file={leftSidePhoto} onChange={setLeftSidePhoto} />
+                <PhotoPicker title={t.right} file={rightSidePhoto} onChange={setRightSidePhoto} />
+                <PhotoPicker title={t.tyres} file={tyrePhoto} onChange={setTyrePhoto} />
+                <PhotoPicker title={t.dashboard} file={dashboardPhoto} onChange={setDashboardPhoto} />
+                <PhotoPicker title={t.engine} file={enginePhoto} onChange={setEnginePhoto} />
+                <PhotoPicker title={t.extra} file={extraPhoto} onChange={setExtraPhoto} />
               </div>
 
               <textarea
-                placeholder="Remarks / issue details optional"
+                placeholder={t.remarks}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 className="mt-4 min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-base font-semibold outline-none focus:border-emerald-500"
               />
+            </section>
+
+            <section className="rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
+              <h2 className="text-2xl font-black">{t.signature}</h2>
+
+              <canvas
+                ref={canvasRef}
+                width={360}
+                height={160}
+                onPointerDown={startDrawing}
+                onPointerMove={draw}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+                className="mt-4 h-40 w-full touch-none rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50"
+              />
+
+              <button
+                type="button"
+                onClick={clearSignature}
+                className="mt-3 h-12 w-full rounded-2xl bg-slate-800 text-sm font-black text-white"
+              >
+                {t.clearSignature}
+              </button>
             </section>
 
             <button
@@ -430,7 +861,7 @@ export default function ChecklistPage() {
               disabled={saving}
               className="h-16 w-full rounded-3xl bg-[#070d22] text-lg font-black text-white shadow-xl shadow-slate-300 disabled:opacity-60"
             >
-              {saving ? 'Submitting Checklist...' : '✅ Submit Checklist'}
+              {saving ? t.submitting : `✅ ${t.submit}`}
             </button>
           </form>
         </div>
