@@ -1,3 +1,98 @@
+function copyComputedStyles(source: HTMLElement, target: HTMLElement) {
+  const computed = window.getComputedStyle(source)
+
+  const properties = [
+    'display',
+    'position',
+    'boxSizing',
+    'width',
+    'height',
+    'minHeight',
+    'maxWidth',
+    'margin',
+    'padding',
+    'border',
+    'borderTop',
+    'borderRight',
+    'borderBottom',
+    'borderLeft',
+    'borderRadius',
+    'background',
+    'backgroundColor',
+    'color',
+    'font',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'lineHeight',
+    'letterSpacing',
+    'textAlign',
+    'textTransform',
+    'verticalAlign',
+    'whiteSpace',
+    'overflow',
+    'objectFit',
+    'objectPosition',
+    'gridTemplateColumns',
+    'gridTemplateRows',
+    'gridColumn',
+    'gridRow',
+    'gap',
+    'rowGap',
+    'columnGap',
+    'alignItems',
+    'justifyContent',
+    'justifyItems',
+    'flexDirection',
+    'flexWrap',
+  ]
+
+  properties.forEach((property) => {
+    try {
+      target.style.setProperty(
+        property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+        computed.getPropertyValue(
+          property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+        )
+      )
+    } catch {
+      // Ignore unsupported style properties.
+    }
+  })
+
+  target.style.boxShadow = 'none'
+  target.style.textShadow = 'none'
+
+  const sourceChildren = Array.from(source.children) as HTMLElement[]
+  const targetChildren = Array.from(target.children) as HTMLElement[]
+
+  sourceChildren.forEach((child, index) => {
+    const targetChild = targetChildren[index]
+    if (targetChild) {
+      copyComputedStyles(child, targetChild)
+    }
+  })
+}
+
+function createSafePdfClone(element: HTMLElement) {
+  const clone = element.cloneNode(true) as HTMLElement
+
+  copyComputedStyles(element, clone)
+
+  clone.id = `${element.id}-safe-pdf-clone`
+  clone.style.position = 'fixed'
+  clone.style.left = '-10000px'
+  clone.style.top = '0'
+  clone.style.zIndex = '-1'
+  clone.style.backgroundColor = '#ffffff'
+  clone.style.width = `${element.scrollWidth}px`
+  clone.style.minHeight = `${element.scrollHeight}px`
+
+  document.body.appendChild(clone)
+
+  return clone
+}
+
 export async function buildPdfBlobFromElement(elementId: string): Promise<Blob> {
   const element = document.getElementById(elementId)
 
@@ -11,35 +106,81 @@ export async function buildPdfBlobFromElement(elementId: string): Promise<Blob> 
   const html2canvas = html2canvasModule.default
   const JsPDF = jsPdfModule.default
 
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: '#ffffff',
-    logging: false,
-  })
+  const safeClone = createSafePdfClone(element)
 
-  const pdf = new JsPDF('p', 'mm', 'a4')
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
+  try {
+    const canvas = await html2canvas(safeClone, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: safeClone.scrollWidth,
+      windowHeight: safeClone.scrollHeight,
+      onclone: (clonedDocument) => {
+        clonedDocument
+          .querySelectorAll('style, link[rel="stylesheet"]')
+          .forEach((node) => node.remove())
+      },
+    })
 
-  const imgWidth = pageWidth
-  const imgHeight = (canvas.height * imgWidth) / canvas.width
-  let heightLeft = imgHeight
-  let position = 0
+    const pdf = new JsPDF('p', 'mm', 'a4')
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.96)
-  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
-  heightLeft -= pageHeight
+    const pageHeightPx = Math.floor((canvas.width * pageHeight) / pageWidth)
 
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight
-    pdf.addPage()
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight
+    const pageCanvas = document.createElement('canvas')
+    const pageContext = pageCanvas.getContext('2d')
+
+    if (!pageContext) {
+      throw new Error('Unable to create PDF canvas.')
+    }
+
+    pageCanvas.width = canvas.width
+    pageCanvas.height = pageHeightPx
+
+    let renderedHeight = 0
+    let pageNumber = 0
+
+    while (renderedHeight < canvas.height) {
+      pageContext.clearRect(0, 0, pageCanvas.width, pageCanvas.height)
+      pageContext.fillStyle = '#ffffff'
+      pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+
+      pageContext.drawImage(
+        canvas,
+        0,
+        renderedHeight,
+        canvas.width,
+        pageHeightPx,
+        0,
+        0,
+        canvas.width,
+        pageHeightPx
+      )
+
+      const pageData = pageCanvas.toDataURL('image/jpeg', 0.97)
+
+      if (pageNumber > 0) {
+        pdf.addPage()
+      }
+
+      pdf.addImage(pageData, 'JPEG', 0, 0, pageWidth, pageHeight)
+
+      const footerText = `Generated by PGT Driver App | Page ${pageNumber + 1}`
+      pdf.setFontSize(8)
+      pdf.setTextColor(90)
+      pdf.text(footerText, pageWidth / 2, pageHeight - 4, { align: 'center' })
+
+      renderedHeight += pageHeightPx
+      pageNumber += 1
+    }
+
+    return pdf.output('blob')
+  } finally {
+    safeClone.remove()
   }
-
-  return pdf.output('blob')
 }
 
 export async function downloadPdfFromElement(
@@ -66,6 +207,7 @@ export async function sharePdfOrWhatsAppText(
 ): Promise<void> {
   const blob = await buildPdfBlobFromElement(elementId)
   const file = new File([blob], fileName, { type: 'application/pdf' })
+
   const navigatorWithShare = navigator as Navigator & {
     canShare?: (data: { files?: File[] }) => boolean
     share?: (data: { title?: string; text?: string; files?: File[] }) => Promise<void>
@@ -91,4 +233,24 @@ export async function sharePdfOrWhatsAppText(
   )}`
 
   window.open(whatsappUrl, '_blank')
+}
+
+export async function generateQrDataUrl(text: string): Promise<string> {
+  try {
+    // @ts-ignore qrcode package may not expose local TypeScript declarations in all installs
+    const qrCodeModule = await import('qrcode')
+    const qrCode = qrCodeModule.default || qrCodeModule
+
+    return await qrCode.toDataURL(text, {
+      width: 160,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#070d22',
+        light: '#ffffff',
+      },
+    })
+  } catch {
+    return ''
+  }
 }
