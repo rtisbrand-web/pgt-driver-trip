@@ -157,15 +157,17 @@ function drawHeader(pdf: any, report: PdfChecklistReport, qrDataUrl: string) {
     align: 'center',
   })
 
+  const textRightX = pageWidth - 34
+
   pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(`DTR No: ${safeText(report.report_no)}`, pageWidth - 12, 16, { align: 'right' })
-  pdf.text(`Date: ${safeText(report.checklist_date)}`, pageWidth - 12, 22, { align: 'right' })
-  pdf.text(`Status: ${safeText(report.status)}`, pageWidth - 12, 28, { align: 'right' })
+  pdf.text(`DTR No: ${safeText(report.report_no)}`, textRightX, 16, { align: 'right' })
+  pdf.text(`Date: ${safeText(report.checklist_date)}`, textRightX, 22, { align: 'right' })
+  pdf.text(`Status: ${safeText(report.status)}`, textRightX, 28, { align: 'right' })
 
   if (qrDataUrl) {
     try {
-      pdf.addImage(qrDataUrl, 'PNG', pageWidth - 33, 15, 14, 14)
+      pdf.addImage(qrDataUrl, 'PNG', pageWidth - 29, 13, 16, 16)
     } catch {
       // Ignore QR rendering failures.
     }
@@ -222,7 +224,9 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
 
-  const qrDataUrl = await makeQrDataUrl(makeChecklistShareMessage(report))
+  const qrDataUrl = await makeQrDataUrl(
+    `https://pgt-driver-trip.vercel.app/checklist-history?report=${report.id}`
+  )
 
   let pageNo = 1
   let y = 50
