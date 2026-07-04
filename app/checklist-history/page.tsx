@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import {
+  downloadPdfFromElement,
+  sharePdfOrWhatsAppText,
+} from '../../lib/pdf/checklistPdf'
 
 type DriverSession = {
   driver_id: string
@@ -50,12 +54,14 @@ type ChecklistReport = {
 
 const COMPANY_NAME = 'PGT Logistic and Transport Services LLC'
 const REPORT_TITLE = 'EHS VEHICLE DAILY CHECKLIST'
+const PDF_ELEMENT_ID = 'checklist-pdf-report'
 
 export default function ChecklistHistoryPage() {
   const [driver, setDriver] = useState<DriverSession | null>(null)
   const [reports, setReports] = useState<ChecklistReport[]>([])
   const [selectedReport, setSelectedReport] = useState<ChecklistReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pdfWorking, setPdfWorking] = useState(false)
 
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -136,27 +142,62 @@ export default function ChecklistHistoryPage() {
     setSelectedReport(report)
   }
 
-  function downloadPdf(report: ChecklistReport) {
-    setSelectedReport(report)
-    setTimeout(() => window.print(), 400)
+  function makePdfFileName(report: ChecklistReport) {
+    const reportNo = (report.report_no || 'VDCL-REPORT').replace(/[^a-zA-Z0-9-_]/g, '-')
+    const vehicle = (report.vehicle_no_snapshot || 'VEHICLE').replace(/[^a-zA-Z0-9-_]/g, '-')
+    return `${reportNo}-${vehicle}.pdf`
   }
 
-  function shareWhatsApp(report: ChecklistReport) {
-    const lines = [
+  function makeShareMessage(report: ChecklistReport) {
+    return [
       `${REPORT_TITLE}`,
       `${COMPANY_NAME}`,
       `Report No: ${report.report_no || '-'}`,
       `Driver: ${report.driver_name_snapshot || '-'}`,
+      `Mobile: ${report.driver_mobile_snapshot || '-'}`,
       `Vehicle: ${report.vehicle_no_snapshot || '-'}`,
       `Trailer: ${report.trailer_no_snapshot || '-'}`,
       `Date: ${report.checklist_date || '-'}`,
       `Status: ${report.status || '-'}`,
       `Fail Count: ${report.fail_count || 0}`,
       report.gps_map_link ? `GPS: ${report.gps_map_link}` : '',
-    ].filter(Boolean)
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
 
-    const url = `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`
-    window.open(url, '_blank')
+  function downloadPdf(report: ChecklistReport) {
+    setSelectedReport(report)
+    setPdfWorking(true)
+
+    setTimeout(async () => {
+      try {
+        await downloadPdfFromElement(PDF_ELEMENT_ID, makePdfFileName(report))
+      } catch (error: any) {
+        alert(error.message || 'PDF generation failed')
+      } finally {
+        setPdfWorking(false)
+      }
+    }, 500)
+  }
+
+  function shareWhatsApp(report: ChecklistReport) {
+    setSelectedReport(report)
+    setPdfWorking(true)
+
+    setTimeout(async () => {
+      try {
+        await sharePdfOrWhatsAppText(
+          PDF_ELEMENT_ID,
+          makePdfFileName(report),
+          makeShareMessage(report)
+        )
+      } catch (error: any) {
+        alert(error.message || 'WhatsApp share failed')
+      } finally {
+        setPdfWorking(false)
+      }
+    }, 500)
   }
 
   const stats = useMemo(() => {
@@ -345,6 +386,7 @@ export default function ChecklistHistoryPage() {
 
                     <button
                       onClick={() => downloadPdf(report)}
+                      disabled={pdfWorking}
                       className="h-12 rounded-2xl bg-slate-800 text-sm font-black text-white"
                     >
                       PDF
@@ -352,6 +394,7 @@ export default function ChecklistHistoryPage() {
 
                     <button
                       onClick={() => shareWhatsApp(report)}
+                      disabled={pdfWorking}
                       className="h-12 rounded-2xl bg-emerald-600 text-sm font-black text-white"
                     >
                       WA
@@ -387,6 +430,8 @@ export default function ChecklistHistoryPage() {
               report={selectedReport}
               onClose={() => setSelectedReport(null)}
               onShare={() => shareWhatsApp(selectedReport)}
+              onPdf={() => downloadPdf(selectedReport)}
+              pdfWorking={pdfWorking}
             />
           )}
         </div>
@@ -399,10 +444,14 @@ function ReportView({
   report,
   onClose,
   onShare,
+  onPdf,
+  pdfWorking,
 }: {
   report: ChecklistReport
   onClose: () => void
   onShare: () => void
+  onPdf: () => void
+  pdfWorking: boolean
 }) {
   const sections = Array.isArray(report.checklist_data)
     ? report.checklist_data
@@ -439,21 +488,23 @@ function ReportView({
         <div className="flex gap-2">
           <button
             onClick={onShare}
-            className="rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white"
+            disabled={pdfWorking}
+            className="rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white disabled:opacity-60"
           >
             WhatsApp
           </button>
 
           <button
-            onClick={() => window.print()}
-            className="rounded-2xl bg-blue-900 px-5 py-3 font-black text-white"
+            onClick={onPdf}
+            disabled={pdfWorking}
+            className="rounded-2xl bg-blue-900 px-5 py-3 font-black text-white disabled:opacity-60"
           >
             Save PDF
           </button>
         </div>
       </div>
 
-      <div className="a4-report-page mx-auto bg-white p-5 shadow-2xl">
+      <div id={PDF_ELEMENT_ID} className="a4-report-page mx-auto bg-white p-5 shadow-2xl">
         <ReportHeader report={report} />
 
         <div className="mt-4 grid grid-cols-4 border border-black text-[11px]">

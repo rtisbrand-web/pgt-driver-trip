@@ -545,6 +545,10 @@ export default function DriverDashboardPage() {
     window.location.href = '/breakdown'
   }
 
+  function openChecklistHistory() {
+    window.location.href = '/checklist-history'
+  }
+
   function getCompanyName(trip: Trip) {
     if (Array.isArray(trip.companies)) return trip.companies[0]?.company_name || '-'
     return trip.companies?.company_name || '-'
@@ -637,6 +641,18 @@ export default function DriverDashboardPage() {
                 <p className="mt-3 text-base font-black">Breakdown Alert</p>
                 <p className="mt-1 text-xs font-semibold text-red-100">
                   Report vehicle issue
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={openChecklistHistory}
+                className="col-span-2 min-h-24 rounded-3xl bg-blue-900 p-4 text-left text-white shadow-lg shadow-blue-900/20"
+              >
+                <span className="text-3xl">📄</span>
+                <p className="mt-3 text-base font-black">Checklist History</p>
+                <p className="mt-1 text-xs font-semibold text-blue-100">
+                  View reports, Save PDF and WhatsApp share
                 </p>
               </button>
             </div>
