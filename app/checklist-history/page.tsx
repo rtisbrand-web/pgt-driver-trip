@@ -48,6 +48,9 @@ type ChecklistReport = {
   signature_data: string | null
 }
 
+const COMPANY_NAME = 'PGT Logistic and Transport Services LLC'
+const REPORT_TITLE = 'EHS VEHICLE DAILY CHECKLIST'
+
 export default function ChecklistHistoryPage() {
   const [driver, setDriver] = useState<DriverSession | null>(null)
   const [reports, setReports] = useState<ChecklistReport[]>([])
@@ -129,9 +132,31 @@ export default function ChecklistHistoryPage() {
     window.location.href = '/checklist'
   }
 
-  function printReport(report: ChecklistReport) {
+  function openReport(report: ChecklistReport) {
     setSelectedReport(report)
-    setTimeout(() => window.print(), 300)
+  }
+
+  function downloadPdf(report: ChecklistReport) {
+    setSelectedReport(report)
+    setTimeout(() => window.print(), 400)
+  }
+
+  function shareWhatsApp(report: ChecklistReport) {
+    const lines = [
+      `${REPORT_TITLE}`,
+      `${COMPANY_NAME}`,
+      `Report No: ${report.report_no || '-'}`,
+      `Driver: ${report.driver_name_snapshot || '-'}`,
+      `Vehicle: ${report.vehicle_no_snapshot || '-'}`,
+      `Trailer: ${report.trailer_no_snapshot || '-'}`,
+      `Date: ${report.checklist_date || '-'}`,
+      `Status: ${report.status || '-'}`,
+      `Fail Count: ${report.fail_count || 0}`,
+      report.gps_map_link ? `GPS: ${report.gps_map_link}` : '',
+    ].filter(Boolean)
+
+    const url = `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`
+    window.open(url, '_blank')
   }
 
   const stats = useMemo(() => {
@@ -144,8 +169,50 @@ export default function ChecklistHistoryPage() {
 
   return (
     <main className="min-h-screen bg-[#eef3f8] text-slate-900 print:bg-white">
+      <style jsx global>{`
+        @page {
+          size: A4;
+          margin: 8mm;
+        }
+
+        @media print {
+          body {
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .print-report-wrap {
+            position: static !important;
+            inset: auto !important;
+            display: block !important;
+            overflow: visible !important;
+            background: white !important;
+            padding: 0 !important;
+          }
+
+          .a4-report-page {
+            width: 194mm !important;
+            min-height: 281mm !important;
+            margin: 0 auto !important;
+            box-shadow: none !important;
+            border: 1px solid #111827 !important;
+            border-radius: 0 !important;
+            page-break-after: always;
+          }
+
+          .a4-page-break {
+            page-break-before: always;
+          }
+        }
+      `}</style>
+
       <div className="mx-auto max-w-md pb-8 print:max-w-full">
-        <header className="rounded-b-[36px] bg-[#070d22] px-5 pb-6 pt-7 text-white shadow-xl print:hidden">
+        <header className="no-print rounded-b-[36px] bg-[#070d22] px-5 pb-6 pt-7 text-white shadow-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
@@ -155,7 +222,7 @@ export default function ChecklistHistoryPage() {
                 Checklist History
               </h1>
               <p className="mt-2 text-sm text-slate-300">
-                {driver?.driver_name || 'Driver'} • Past safety reports
+                {driver?.driver_name || 'Driver'} • Professional reports
               </p>
             </div>
 
@@ -175,7 +242,7 @@ export default function ChecklistHistoryPage() {
         </header>
 
         <div className="px-4 print:px-0">
-          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200 print:hidden">
+          <section className="no-print mt-5 rounded-[28px] bg-white p-5 shadow-lg shadow-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -227,7 +294,7 @@ export default function ChecklistHistoryPage() {
             </div>
           </section>
 
-          <section className="mt-5 space-y-4 print:hidden">
+          <section className="no-print mt-5 space-y-4">
             {loading ? (
               <div className="rounded-[28px] bg-white p-6 text-center font-semibold text-slate-500 shadow-lg">
                 Loading checklist reports...
@@ -263,31 +330,38 @@ export default function ChecklistHistoryPage() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <InfoBox title="Trailer" value={report.trailer_no_snapshot || '-'} />
+                    <InfoBox title="Driver" value={report.driver_name_snapshot || '-'} />
                     <InfoBox title="Fail" value={String(report.fail_count || 0)} />
                     <InfoBox title="Date" value={report.checklist_date || '-'} />
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="mt-4 grid grid-cols-4 gap-2">
                     <button
-                      onClick={() => setSelectedReport(report)}
+                      onClick={() => openReport(report)}
                       className="h-12 rounded-2xl bg-blue-900 text-sm font-black text-white"
                     >
                       View
                     </button>
 
                     <button
-                      onClick={() => printReport(report)}
+                      onClick={() => downloadPdf(report)}
                       className="h-12 rounded-2xl bg-slate-800 text-sm font-black text-white"
                     >
-                      Print
+                      PDF
+                    </button>
+
+                    <button
+                      onClick={() => shareWhatsApp(report)}
+                      className="h-12 rounded-2xl bg-emerald-600 text-sm font-black text-white"
+                    >
+                      WA
                     </button>
 
                     {report.gps_map_link ? (
                       <a
                         href={report.gps_map_link}
                         target="_blank"
-                        className="flex h-12 items-center justify-center rounded-2xl bg-emerald-600 text-sm font-black text-white"
+                        className="flex h-12 items-center justify-center rounded-2xl bg-amber-500 text-sm font-black text-white"
                       >
                         GPS
                       </a>
@@ -312,6 +386,7 @@ export default function ChecklistHistoryPage() {
             <ReportView
               report={selectedReport}
               onClose={() => setSelectedReport(null)}
+              onShare={() => shareWhatsApp(selectedReport)}
             />
           )}
         </div>
@@ -323,148 +398,276 @@ export default function ChecklistHistoryPage() {
 function ReportView({
   report,
   onClose,
+  onShare,
 }: {
   report: ChecklistReport
   onClose: () => void
+  onShare: () => void
 }) {
   const sections = Array.isArray(report.checklist_data)
     ? report.checklist_data
     : []
 
+  const allPhotos = [
+    ...(Array.isArray(report.photo_urls) ? report.photo_urls : []),
+    report.vehicle_photo_url,
+    report.tyre_photo_url,
+    report.extra_photo_url,
+  ]
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index) as string[]
+
+  const failItems = sections.flatMap((section) =>
+    section.items
+      .filter((item) => item.status === 'FAIL')
+      .map((item) => ({
+        section: section.title,
+        ...item,
+      }))
+  )
+
   return (
-    <section className="fixed inset-0 z-50 overflow-auto bg-white p-4 print:static print:block print:p-0">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-4 flex items-center justify-between print:hidden">
+    <section className="print-report-wrap fixed inset-0 z-50 overflow-auto bg-slate-100 p-4 print:static print:block print:bg-white">
+      <div className="no-print mx-auto mb-4 flex max-w-4xl items-center justify-between gap-2">
+        <button
+          onClick={onClose}
+          className="rounded-2xl bg-slate-800 px-5 py-3 font-black text-white"
+        >
+          Close
+        </button>
+
+        <div className="flex gap-2">
           <button
-            onClick={onClose}
-            className="rounded-2xl bg-slate-800 px-5 py-3 font-black text-white"
+            onClick={onShare}
+            className="rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white"
           >
-            Close
+            WhatsApp
           </button>
 
           <button
             onClick={() => window.print()}
             className="rounded-2xl bg-blue-900 px-5 py-3 font-black text-white"
           >
-            Print / PDF
+            Save PDF
           </button>
         </div>
+      </div>
 
-        <div className="rounded-2xl border border-slate-200 p-6 print:border-0">
-          <div className="border-b pb-4">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-              PGT Logistic and Transport Services LLC
-            </p>
-            <h1 className="mt-2 text-3xl font-black text-slate-900">
-              Vehicle Daily Checklist Report
-            </h1>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              Report No: {report.report_no || '-'}
-            </p>
-          </div>
+      <div className="a4-report-page mx-auto bg-white p-5 shadow-2xl">
+        <ReportHeader report={report} />
 
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
-            <ReportInfo title="Driver" value={report.driver_name_snapshot || '-'} />
-            <ReportInfo title="Mobile" value={report.driver_mobile_snapshot || '-'} />
-            <ReportInfo title="Vehicle" value={report.vehicle_no_snapshot || '-'} />
-            <ReportInfo title="Trailer" value={report.trailer_no_snapshot || '-'} />
-            <ReportInfo title="Date" value={report.checklist_date || '-'} />
-            <ReportInfo title="Status" value={report.status || '-'} />
-            <ReportInfo title="Fail Count" value={String(report.fail_count || 0)} />
-            <ReportInfo title="GPS" value={report.gps_map_link ? 'Available' : '-'} />
-          </div>
+        <div className="mt-4 grid grid-cols-4 border border-black text-[11px]">
+          <Cell label="Driver Name" value={report.driver_name_snapshot || '-'} />
+          <Cell label="Mobile" value={report.driver_mobile_snapshot || '-'} />
+          <Cell label="Vehicle No." value={report.vehicle_no_snapshot || '-'} />
+          <Cell label="Trailer No." value={report.trailer_no_snapshot || '-'} />
+          <Cell label="Date" value={report.checklist_date || '-'} />
+          <Cell
+            label="Time"
+            value={
+              report.checklist_time
+                ? new Date(report.checklist_time).toLocaleTimeString()
+                : new Date(report.created_at).toLocaleTimeString()
+            }
+          />
+          <Cell label="Status" value={report.status || '-'} strong />
+          <Cell label="Fail Count" value={String(report.fail_count || 0)} strong />
+        </div>
 
-          {report.gps_map_link && (
-            <a
-              href={report.gps_map_link}
-              target="_blank"
-              className="mt-4 inline-block rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white print:hidden"
-            >
-              Open GPS Map
-            </a>
-          )}
+        <div className="mt-4 grid grid-cols-4 gap-3">
+          <SummaryBox title="Report No." value={report.report_no || '-'} />
+          <SummaryBox title="Checklist Status" value={report.status || '-'} />
+          <SummaryBox title="Total Sections" value={String(sections.length)} />
+          <SummaryBox title="GPS" value={report.gps_map_link ? 'Captured' : 'Not Captured'} />
+        </div>
 
-          <div className="mt-6 space-y-5">
+        <div className="mt-4">
+          <h2 className="border border-black bg-[#11a7d9] p-2 text-center text-sm font-black uppercase text-black">
+            Checklist Items
+          </h2>
+
+          <div className="grid grid-cols-2 gap-3 pt-3">
             {sections.map((section) => (
-              <div key={section.key} className="rounded-2xl border border-slate-200 p-4">
-                <h2 className="text-xl font-black text-slate-900">{section.title}</h2>
+              <div key={section.key} className="break-inside-avoid border border-black">
+                <h3 className="border-b border-black bg-slate-200 p-2 text-sm font-black uppercase">
+                  {section.title}
+                </h3>
 
-                <div className="mt-3 overflow-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-slate-100 text-left">
-                        <th className="border p-2">Item</th>
-                        <th className="border p-2">Status</th>
-                        <th className="border p-2">Remarks</th>
-                        <th className="border p-2">Photo</th>
+                <table className="w-full border-collapse text-[10px]">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-r border-black p-1 text-left">Item</th>
+                      <th className="border-b border-r border-black p-1">OK</th>
+                      <th className="border-b border-r border-black p-1">FAIL</th>
+                      <th className="border-b border-black p-1">N/A</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.items.map((item) => (
+                      <tr key={item.key}>
+                        <td className="border-r border-t border-black p-1 font-semibold">
+                          {item.label}
+                        </td>
+                        <td className="border-r border-t border-black p-1 text-center">
+                          {item.status === 'OK' ? '✓' : ''}
+                        </td>
+                        <td className="border-r border-t border-black p-1 text-center">
+                          {item.status === 'FAIL' ? '✕' : ''}
+                        </td>
+                        <td className="border-t border-black p-1 text-center">
+                          {item.status === 'NA' ? '✓' : ''}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {section.items.map((item) => (
-                        <tr key={item.key}>
-                          <td className="border p-2 font-semibold">{item.label}</td>
-                          <td className="border p-2 font-black">{item.status}</td>
-                          <td className="border p-2">{item.remarks || '-'}</td>
-                          <td className="border p-2">
-                            {item.photo_url ? (
-                              <a
-                                href={item.photo_url}
-                                target="_blank"
-                                className="font-bold text-blue-700 underline"
-                              >
-                                View
-                              </a>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ))}
           </div>
+        </div>
 
-          {Array.isArray(report.photo_urls) && report.photo_urls.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-xl font-black text-slate-900">Photos</h2>
-              <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                {report.photo_urls.map((url, index) => (
-                  <a
-                    href={url}
-                    target="_blank"
-                    key={url}
-                    className="rounded-xl border p-3 text-center text-sm font-bold text-blue-700"
-                  >
-                    Photo {index + 1}
-                  </a>
+        {failItems.length > 0 && (
+          <div className="mt-4 break-inside-avoid">
+            <h2 className="border border-black bg-red-100 p-2 text-sm font-black uppercase text-red-800">
+              Failed Items / Defects
+            </h2>
+
+            <table className="w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="border border-black p-1 text-left">Section</th>
+                  <th className="border border-black p-1 text-left">Item</th>
+                  <th className="border border-black p-1 text-left">Remarks</th>
+                  <th className="border border-black p-1">Photo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failItems.map((item) => (
+                  <tr key={`${item.section}-${item.key}`}>
+                    <td className="border border-black p-1">{item.section}</td>
+                    <td className="border border-black p-1 font-semibold">{item.label}</td>
+                    <td className="border border-black p-1">{item.remarks || '-'}</td>
+                    <td className="border border-black p-1 text-center">
+                      {item.photo_url ? 'Attached' : '-'}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-          {report.signature_data && (
-            <div className="mt-6">
-              <h2 className="text-xl font-black text-slate-900">Driver Signature</h2>
+        <div className="mt-4 grid grid-cols-2 gap-4 break-inside-avoid">
+          <div className="min-h-24 border border-black p-2">
+            <h2 className="text-sm font-black uppercase">Remarks</h2>
+            <p className="mt-2 text-[11px]">{report.remarks || '-'}</p>
+            {report.gps_map_link && (
+              <p className="mt-2 break-all text-[10px]">
+                GPS: {report.gps_map_link}
+              </p>
+            )}
+          </div>
+
+          <div className="min-h-24 border border-black p-2">
+            <h2 className="text-sm font-black uppercase">Driver Signature</h2>
+            {report.signature_data ? (
               <img
                 src={report.signature_data}
                 alt="Driver Signature"
-                className="mt-3 h-28 rounded-xl border bg-slate-50 object-contain p-3"
+                className="mt-2 h-20 max-w-full object-contain"
               />
-            </div>
-          )}
+            ) : (
+              <p className="mt-8 text-[11px] text-slate-500">No signature</p>
+            )}
+          </div>
+        </div>
 
-          {report.remarks && (
-            <div className="mt-6 rounded-xl bg-slate-50 p-4">
-              <h2 className="font-black text-slate-900">General Remarks</h2>
-              <p className="mt-2 text-sm font-semibold text-slate-600">{report.remarks}</p>
-            </div>
-          )}
+        <div className="mt-4 border-t border-black pt-2 text-center text-[10px] font-semibold">
+          This is a system generated Vehicle Daily Checklist report from PGT Driver App.
         </div>
       </div>
+
+      {allPhotos.length > 0 && (
+        <div className="a4-report-page a4-page-break mx-auto mt-6 bg-white p-5 shadow-2xl print:mt-0">
+          <ReportHeader report={report} small />
+
+          <h2 className="mt-4 border border-black bg-[#11a7d9] p-2 text-center text-sm font-black uppercase text-black">
+            Photo Evidence
+          </h2>
+
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            {allPhotos.map((url, index) => (
+              <div key={url} className="break-inside-avoid border border-black p-2">
+                <p className="mb-2 text-xs font-black">Photo {index + 1}</p>
+                <img
+                  src={url}
+                  alt={`Checklist Photo ${index + 1}`}
+                  className="h-52 w-full object-contain"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
+  )
+}
+
+function ReportHeader({
+  report,
+  small,
+}: {
+  report: ChecklistReport
+  small?: boolean
+}) {
+  return (
+    <div className="grid grid-cols-[80px_1fr_190px] items-center gap-3 border border-black p-2">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#070d22] text-lg font-black text-white">
+        PGT
+      </div>
+
+      <div className="text-center">
+        <p className="text-xs font-black uppercase tracking-widest">{COMPANY_NAME}</p>
+        <h1 className={`${small ? 'text-lg' : 'text-2xl'} font-black text-black`}>
+          {REPORT_TITLE}
+        </h1>
+        <p className="text-[10px] font-semibold text-slate-600">
+          Professional Safety Inspection Report
+        </p>
+      </div>
+
+      <div className="text-[10px] font-semibold leading-5">
+        <p>DTR No: {report.report_no || '-'}</p>
+        <p>Date: {report.checklist_date || '-'}</p>
+        <p>Status: {report.status || '-'}</p>
+      </div>
+    </div>
+  )
+}
+
+function Cell({
+  label,
+  value,
+  strong,
+}: {
+  label: string
+  value: string
+  strong?: boolean
+}) {
+  return (
+    <div className="border-b border-r border-black p-2">
+      <p className="text-[9px] font-bold uppercase text-slate-500">{label}</p>
+      <p className={`mt-1 ${strong ? 'font-black' : 'font-semibold'}`}>{value}</p>
+    </div>
+  )
+}
+
+function SummaryBox({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-center">
+      <p className="text-[10px] font-bold uppercase text-slate-500">{title}</p>
+      <p className="mt-1 text-sm font-black text-slate-900">{value}</p>
+    </div>
   )
 }
 
@@ -500,15 +703,6 @@ function InfoBox({ title, value }: { title: string; value: string }) {
     <div className="rounded-2xl bg-slate-50 p-3">
       <p className="text-[10px] font-bold uppercase text-slate-400">{title}</p>
       <p className="mt-1 truncate text-sm font-black text-slate-900">{value}</p>
-    </div>
-  )
-}
-
-function ReportInfo({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-500">{title}</p>
-      <p className="mt-1 font-black text-slate-900">{value}</p>
     </div>
   )
 }
