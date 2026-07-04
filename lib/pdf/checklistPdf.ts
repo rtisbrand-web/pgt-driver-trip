@@ -172,37 +172,51 @@ function footer(pdf: any, pageNo: number) {
 
 function header(pdf: any, report: PdfChecklistReport, qr: string) {
   const w = pdf.internal.pageSize.getWidth()
-  pdf.setDrawColor(0)
-  pdf.rect(10, 10, w - 20, 30)
 
+  pdf.setDrawColor(0)
+  pdf.rect(10, 10, w - 20, 42)
+
+  // Logo
   pdf.setFillColor(7, 13, 34)
-  pdf.circle(21, 25, 7, 'F')
+  pdf.circle(22, 31, 8, 'F')
   pdf.setTextColor(255)
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
-  pdf.text('PGT', 21, 27, { align: 'center' })
+  pdf.text('PGT', 22, 33, { align: 'center' })
 
-  // Controlled title area to avoid overlap with DTR + QR.
+  // Title area
   pdf.setTextColor(0)
   pdf.setFontSize(8)
-  pdf.text(COMPANY_NAME.toUpperCase(), 90, 18, { align: 'center' })
-  pdf.setFontSize(13)
-  pdf.text(REPORT_TITLE, 90, 26, { align: 'center' })
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(COMPANY_NAME.toUpperCase(), w / 2, 18, { align: 'center' })
+
+  pdf.setFontSize(14)
+  pdf.text(REPORT_TITLE, w / 2, 26, { align: 'center' })
+
   pdf.setFontSize(7)
   pdf.setFont('helvetica', 'normal')
-  pdf.text('Professional Safety Inspection Report', 90, 33, { align: 'center' })
+  pdf.text('Professional Safety Inspection Report', w / 2, 33, { align: 'center' })
 
-  pdf.setFontSize(6.5)
+  // Report info centered under title, away from QR
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(`DTR No: ${pdfText(report.report_no)}`, w - 48, 17)
-  pdf.text(`Date: ${pdfText(report.checklist_date)}`, w - 48, 24)
-  pdf.text(`Status: ${pdfText(report.status)}`, w - 48, 31)
+  pdf.text(`DTR No: ${pdfText(report.report_no)}`, w / 2, 40, { align: 'center' })
+  pdf.text(`Date: ${pdfText(report.checklist_date)}   |   Status: ${pdfText(report.status)}`, w / 2, 46, { align: 'center' })
+
+  // QR dedicated box on right side - no overlap with text
+  const qrBoxX = w - 34
+  const qrBoxY = 14
+  pdf.rect(qrBoxX, qrBoxY, 20, 25)
 
   if (qr) {
     try {
-      pdf.addImage(qr, 'PNG', w - 28, 15, 17, 17)
+      pdf.addImage(qr, 'PNG', qrBoxX + 2, qrBoxY + 2, 16, 16)
     } catch {}
   }
+
+  pdf.setFontSize(5.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('SCAN REPORT', qrBoxX + 10, qrBoxY + 22, { align: 'center' })
 }
 
 function badge(pdf: any, report: PdfChecklistReport, x: number, y: number) {
@@ -238,10 +252,10 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
   const qr = await qrDataUrl(`https://pgt-driver-trip.vercel.app/checklist-history?report=${report.id}`)
 
   let pageNo = 1
-  let y = 54
+  let y = 66
 
   header(pdf, report, qr)
-  badge(pdf, report, 81, 42)
+  badge(pdf, report, 81, 54)
 
   const cw = (w - 20) / 4
   const ch = 14
@@ -289,7 +303,7 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
       pdf.addPage()
       pageNo += 1
       header(pdf, report, qr)
-      y = 46
+      y = 58
     }
 
     pair.forEach((s, si) => {
@@ -336,7 +350,7 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
       pdf.addPage()
       pageNo += 1
       header(pdf, report, qr)
-      y = 46
+      y = 58
     }
 
     pdf.setFillColor(255, 230, 230)
@@ -352,7 +366,7 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
         pdf.addPage()
         pageNo += 1
         header(pdf, report, qr)
-        y = 46
+        y = 58
       }
       pdf.rect(10, y, w - 20, 8)
       pdf.setFontSize(7)
@@ -437,7 +451,7 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
         pdf.addPage()
         pageNo += 1
         header(pdf, report, qr)
-        y = 46
+        y = 58
         rowY = y
       }
 
