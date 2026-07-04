@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
-  downloadPdfFromElement,
-  sharePdfOrWhatsAppText,
+  downloadChecklistPdf,
+  shareChecklistPdf,
 } from '../../lib/pdf/checklistPdf'
 
 type DriverSession = {
@@ -187,11 +187,7 @@ export default function ChecklistHistoryPage() {
 
     setTimeout(async () => {
       try {
-        await sharePdfOrWhatsAppText(
-          PDF_ELEMENT_ID,
-          makePdfFileName(report),
-          makeShareMessage(report)
-        )
+        await shareChecklistPdf(report)
       } catch (error: any) {
         alert(error.message || 'WhatsApp share failed')
       } finally {
