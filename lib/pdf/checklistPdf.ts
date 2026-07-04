@@ -40,24 +40,74 @@ export type PdfChecklistReport = {
 const COMPANY_NAME = 'PGT Logistic and Transport Services LLC'
 const REPORT_TITLE = 'EHS VEHICLE DAILY CHECKLIST'
 
-function safeText(value: string | number | null | undefined) {
+const SECTION_NAMES: Record<string, string> = {
+  mechanical: 'Mechanical',
+  electrical: 'Electrical',
+  safety: 'Safety',
+  ppe: 'PPE',
+}
+
+const ITEM_NAMES: Record<string, string> = {
+  brakes: 'BRAKES',
+  clutch: 'CLUTCH',
+  gear: 'GEAR',
+  tires: 'TIRES',
+  engine_fluids: 'ENGINE FLUIDS',
+  mirrors: 'MIRRORS',
+  doors: 'DOORS',
+  air_system: 'AIR SYSTEM',
+  lights: 'Lights',
+  horn: 'Horn',
+  wiper: 'Wiper',
+  indicator: 'Indicator',
+  reverse_horn: 'Reverse horn',
+  reverse_light: 'Reverse Light',
+  fan_belt: 'Fan Belt',
+  starter: 'Starter',
+  lashing_belts: 'Lashing belts',
+  side_safety_angle: 'Side Safety Angle',
+  wheel_choker: 'Wheel Choker',
+  triangle: 'Triangle',
+  first_aid_kit: 'First AID KIT',
+  fire_extinguisher: 'Fire Extinguisher',
+  trailer_head: 'Trailer Head',
+  safety_helmet: 'SAFETY HELMET',
+  safety_gloves: 'SAFETY GLOVES',
+  safety_glasses: 'SAFETY GLASSES',
+  safety_jacket: 'SAFETY JACKET',
+  safety_shoes: 'SAFETY SHOES',
+}
+
+function text(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === '') return '-'
   return String(value)
 }
 
-function getSections(report: PdfChecklistReport) {
-  return Array.isArray(report.checklist_data) ? report.checklist_data : []
+function pdfText(value: string | number | null | undefined) {
+  return text(value).replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || '-'
 }
 
-function getFailItems(report: PdfChecklistReport) {
-  return getSections(report).flatMap((section) =>
+function sections(report: PdfChecklistReport) {
+  return (Array.isArray(report.checklist_data) ? report.checklist_data : []).map((section) => ({
+    ...section,
+    title: SECTION_NAMES[section.key] || pdfText(section.title),
+    items: section.items.map((item) => ({
+      ...item,
+      label: ITEM_NAMES[item.key] || pdfText(item.label),
+      remarks: pdfText(item.remarks),
+    })),
+  }))
+}
+
+function failedItems(report: PdfChecklistReport) {
+  return sections(report).flatMap((section) =>
     section.items
       .filter((item) => item.status === 'FAIL')
       .map((item) => ({ section: section.title, ...item }))
   )
 }
 
-function makeFileName(report: PdfChecklistReport) {
+function fileName(report: PdfChecklistReport) {
   const reportNo = (report.report_no || 'VDCL-REPORT').replace(/[^a-zA-Z0-9-_]/g, '-')
   const vehicle = (report.vehicle_no_snapshot || 'VEHICLE').replace(/[^a-zA-Z0-9-_]/g, '-')
   return `${reportNo}-${vehicle}.pdf`
@@ -67,25 +117,38 @@ export function makeChecklistShareMessage(report: PdfChecklistReport) {
   return [
     REPORT_TITLE,
     COMPANY_NAME,
-    `Report No: ${safeText(report.report_no)}`,
-    `Driver: ${safeText(report.driver_name_snapshot)}`,
-    `Mobile: ${safeText(report.driver_mobile_snapshot)}`,
-    `Vehicle: ${safeText(report.vehicle_no_snapshot)}`,
-    `Trailer: ${safeText(report.trailer_no_snapshot)}`,
-    `Date: ${safeText(report.checklist_date)}`,
-    `Status: ${safeText(report.status)}`,
-    `Fail Count: ${safeText(report.fail_count || 0)}`,
+    `Report No: ${text(report.report_no)}`,
+    `Driver: ${text(report.driver_name_snapshot)}`,
+    `Mobile: ${text(report.driver_mobile_snapshot)}`,
+    `Vehicle: ${text(report.vehicle_no_snapshot)}`,
+    `Trailer: ${text(report.trailer_no_snapshot)}`,
+    `Date: ${text(report.checklist_date)}`,
+    `Status: ${text(report.status)}`,
+    `Fail Count: ${text(report.fail_count || 0)}`,
     report.gps_map_link ? `GPS: ${report.gps_map_link}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
+  ].filter(Boolean).join('\n')
+}
+
+async function qrDataUrl(value: string): Promise<string> {
+  try {
+    // @ts-ignore
+    const qrcode = await import('qrcode')
+    const qr = qrcode.default || qrcode
+    return await qr.toDataURL(value, {
+      width: 120,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#070d22', light: '#ffffff' },
+    })
+  } catch {
+    return ''
+  }
 }
 
 async function imageUrlToDataUrl(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url, { mode: 'cors' })
-    const blob = await response.blob()
-
+    const res = await fetch(url, { mode: 'cors' })
+    const blob = await res.blob()
     return await new Promise((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(String(reader.result))
@@ -97,364 +160,299 @@ async function imageUrlToDataUrl(url: string): Promise<string | null> {
   }
 }
 
-async function makeQrDataUrl(text: string): Promise<string> {
-  try {
-    // @ts-ignore
-    const qrCodeModule = await import('qrcode')
-    const qrCode = qrCodeModule.default || qrCodeModule
-
-    return await qrCode.toDataURL(text, {
-      width: 120,
-      margin: 1,
-      errorCorrectionLevel: 'M',
-      color: {
-        dark: '#070d22',
-        light: '#ffffff',
-      },
-    })
-  } catch {
-    return ''
-  }
-}
-
-function drawFooter(pdf: any, pageNo: number) {
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-
+function footer(pdf: any, pageNo: number) {
+  const w = pdf.internal.pageSize.getWidth()
+  const h = pdf.internal.pageSize.getHeight()
   pdf.setDrawColor(0)
-  pdf.line(10, pageHeight - 10, pageWidth - 10, pageHeight - 10)
+  pdf.line(10, h - 10, w - 10, h - 10)
   pdf.setFontSize(7)
   pdf.setTextColor(80)
-  pdf.text(`Generated by PGT Driver App | Page ${pageNo}`, pageWidth / 2, pageHeight - 5, {
-    align: 'center',
-  })
+  pdf.text(`Generated by PGT Driver App | Page ${pageNo}`, w / 2, h - 5, { align: 'center' })
 }
 
-function drawHeader(pdf: any, report: PdfChecklistReport, qrDataUrl: string) {
-  const pageWidth = pdf.internal.pageSize.getWidth()
-
+function header(pdf: any, report: PdfChecklistReport, qr: string) {
+  const w = pdf.internal.pageSize.getWidth()
   pdf.setDrawColor(0)
-  pdf.rect(10, 10, pageWidth - 20, 26)
+  pdf.rect(10, 10, w - 20, 30)
 
   pdf.setFillColor(7, 13, 34)
-  pdf.circle(20, 23, 7, 'F')
+  pdf.circle(21, 25, 7, 'F')
   pdf.setTextColor(255)
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
-  pdf.text('PGT', 20, 25, { align: 'center' })
+  pdf.text('PGT', 21, 27, { align: 'center' })
 
+  // Controlled title area to avoid overlap with DTR + QR.
   pdf.setTextColor(0)
-  pdf.setFontSize(9)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(COMPANY_NAME.toUpperCase(), pageWidth / 2, 17, { align: 'center' })
-
-  pdf.setFontSize(15)
-  pdf.text(REPORT_TITLE, pageWidth / 2, 24, { align: 'center' })
-
+  pdf.setFontSize(8)
+  pdf.text(COMPANY_NAME.toUpperCase(), 90, 18, { align: 'center' })
+  pdf.setFontSize(13)
+  pdf.text(REPORT_TITLE, 90, 26, { align: 'center' })
   pdf.setFontSize(7)
   pdf.setFont('helvetica', 'normal')
-  pdf.text('Professional Safety Inspection Report', pageWidth / 2, 30, {
-    align: 'center',
-  })
+  pdf.text('Professional Safety Inspection Report', 90, 33, { align: 'center' })
 
-  const textRightX = pageWidth - 34
-
-  pdf.setFontSize(7)
+  pdf.setFontSize(6.5)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(`DTR No: ${safeText(report.report_no)}`, textRightX, 16, { align: 'right' })
-  pdf.text(`Date: ${safeText(report.checklist_date)}`, textRightX, 22, { align: 'right' })
-  pdf.text(`Status: ${safeText(report.status)}`, textRightX, 28, { align: 'right' })
+  pdf.text(`DTR No: ${pdfText(report.report_no)}`, w - 48, 17)
+  pdf.text(`Date: ${pdfText(report.checklist_date)}`, w - 48, 24)
+  pdf.text(`Status: ${pdfText(report.status)}`, w - 48, 31)
 
-  if (qrDataUrl) {
+  if (qr) {
     try {
-      pdf.addImage(qrDataUrl, 'PNG', pageWidth - 29, 13, 16, 16)
-    } catch {
-      // Ignore QR rendering failures.
-    }
+      pdf.addImage(qr, 'PNG', w - 28, 15, 17, 17)
+    } catch {}
   }
 }
 
-function drawStatusBadge(pdf: any, report: PdfChecklistReport, x: number, y: number) {
-  const isOk = report.status === 'OK'
-
-  if (isOk) {
-    pdf.setFillColor(220, 252, 231)
-    pdf.setDrawColor(5, 150, 105)
-    pdf.setTextColor(5, 120, 80)
-  } else {
-    pdf.setFillColor(255, 230, 230)
-    pdf.setDrawColor(185, 28, 28)
-    pdf.setTextColor(185, 28, 28)
-  }
-
+function badge(pdf: any, report: PdfChecklistReport, x: number, y: number) {
+  const ok = report.status === 'OK'
+  pdf.setFillColor(ok ? 220 : 255, ok ? 252 : 230, ok ? 231 : 230)
+  pdf.setDrawColor(ok ? 5 : 185, ok ? 150 : 28, ok ? 105 : 28)
+  pdf.setTextColor(ok ? 5 : 185, ok ? 120 : 28, ok ? 80 : 28)
   pdf.roundedRect(x, y, 48, 9, 4, 4, 'FD')
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(isOk ? 'PASS' : 'FAIL / ATTENTION', x + 24, y + 6, { align: 'center' })
+  pdf.text(ok ? 'PASS' : 'FAIL / ATTENTION', x + 24, y + 6, { align: 'center' })
   pdf.setTextColor(0)
 }
 
-function drawBorderedText(
-  pdf: any,
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number
-) {
-  pdf.rect(x, y, w, h)
+function cell(pdf: any, label: string, value: string, x: number, y: number, cw: number, ch: number) {
+  pdf.rect(x, y, cw, ch)
   pdf.setFontSize(7)
   pdf.setTextColor(90)
   pdf.setFont('helvetica', 'bold')
   pdf.text(label.toUpperCase(), x + 2, y + 4)
-
   pdf.setFontSize(9)
   pdf.setTextColor(0)
-  const lines = pdf.splitTextToSize(value, w - 4)
-  pdf.text(lines.slice(0, 2), x + 2, y + 9)
+  pdf.text(pdf.splitTextToSize(pdfText(value), cw - 4).slice(0, 2), x + 2, y + 9)
   pdf.setFont('helvetica', 'normal')
 }
 
 export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise<Blob> {
-  const jsPdfModule = await import('jspdf')
-  const JsPDF = jsPdfModule.default
-
+  const mod = await import('jspdf')
+  const JsPDF = mod.default
   const pdf = new JsPDF('p', 'mm', 'a4')
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-
-  const qrDataUrl = await makeQrDataUrl(
-    `https://pgt-driver-trip.vercel.app/checklist-history?report=${report.id}`
-  )
+  const w = pdf.internal.pageSize.getWidth()
+  const h = pdf.internal.pageSize.getHeight()
+  const qr = await qrDataUrl(`https://pgt-driver-trip.vercel.app/checklist-history?report=${report.id}`)
 
   let pageNo = 1
-  let y = 50
+  let y = 54
 
-  drawHeader(pdf, report, qrDataUrl)
-  drawStatusBadge(pdf, report, 81, 38)
+  header(pdf, report, qr)
+  badge(pdf, report, 81, 42)
 
-  const cellW = (pageWidth - 20) / 4
-  const cellH = 14
+  const cw = (w - 20) / 4
+  const ch = 14
 
-  drawBorderedText(pdf, 'Driver Name', safeText(report.driver_name_snapshot), 10, y, cellW, cellH)
-  drawBorderedText(pdf, 'Mobile', safeText(report.driver_mobile_snapshot), 10 + cellW, y, cellW, cellH)
-  drawBorderedText(pdf, 'Vehicle No.', safeText(report.vehicle_no_snapshot), 10 + cellW * 2, y, cellW, cellH)
-  drawBorderedText(pdf, 'Trailer No.', safeText(report.trailer_no_snapshot), 10 + cellW * 3, y, cellW, cellH)
+  cell(pdf, 'Driver Name', text(report.driver_name_snapshot), 10, y, cw, ch)
+  cell(pdf, 'Mobile', text(report.driver_mobile_snapshot), 10 + cw, y, cw, ch)
+  cell(pdf, 'Vehicle No.', text(report.vehicle_no_snapshot), 10 + cw * 2, y, cw, ch)
+  cell(pdf, 'Trailer No.', text(report.trailer_no_snapshot), 10 + cw * 3, y, cw, ch)
 
-  y += cellH
+  y += ch
 
-  drawBorderedText(pdf, 'Date', safeText(report.checklist_date), 10, y, cellW, cellH)
-  drawBorderedText(
+  cell(pdf, 'Date', text(report.checklist_date), 10, y, cw, ch)
+  cell(
     pdf,
     'Time',
-    report.checklist_time
-      ? new Date(report.checklist_time).toLocaleTimeString()
-      : new Date(report.created_at).toLocaleTimeString(),
-    10 + cellW,
+    report.checklist_time ? new Date(report.checklist_time).toLocaleTimeString() : new Date(report.created_at).toLocaleTimeString(),
+    10 + cw,
     y,
-    cellW,
-    cellH
+    cw,
+    ch
   )
-  drawBorderedText(pdf, 'Status', safeText(report.status), 10 + cellW * 2, y, cellW, cellH)
-  drawBorderedText(pdf, 'Fail Count', safeText(report.fail_count || 0), 10 + cellW * 3, y, cellW, cellH)
+  cell(pdf, 'Status', text(report.status), 10 + cw * 2, y, cw, ch)
+  cell(pdf, 'Fail Count', text(report.fail_count || 0), 10 + cw * 3, y, cw, ch)
 
-  y += cellH + 5
+  y += ch + 5
 
   pdf.setFillColor(17, 167, 217)
-  pdf.rect(10, y, pageWidth - 20, 8, 'F')
+  pdf.rect(10, y, w - 20, 8, 'F')
   pdf.setTextColor(0)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
-  pdf.text('CHECKLIST ITEMS', pageWidth / 2, y + 5.5, { align: 'center' })
+  pdf.text('CHECKLIST ITEMS', w / 2, y + 5.5, { align: 'center' })
   y += 12
 
-  const sectionWidth = (pageWidth - 24) / 2
-  const sections = getSections(report)
+  const sw = (w - 24) / 2
+  const sec = sections(report)
 
-  for (let index = 0; index < sections.length; index += 2) {
-    const rowSections = sections.slice(index, index + 2)
-    const maxItems = Math.max(...rowSections.map((section) => section.items.length))
-    const sectionHeight = 9 + 7 + maxItems * 6
+  for (let index = 0; index < sec.length; index += 2) {
+    const pair = sec.slice(index, index + 2)
+    const maxItems = Math.max(...pair.map((s) => s.items.length))
+    const sh = 9 + 7 + maxItems * 6
 
-    if (y + sectionHeight > pageHeight - 18) {
-      drawFooter(pdf, pageNo)
+    if (y + sh > h - 18) {
+      footer(pdf, pageNo)
       pdf.addPage()
       pageNo += 1
-      drawHeader(pdf, report, qrDataUrl)
-      y = 42
+      header(pdf, report, qr)
+      y = 46
     }
 
-    rowSections.forEach((section, sectionIndex) => {
-      const x = 10 + sectionIndex * (sectionWidth + 4)
-
+    pair.forEach((s, si) => {
+      const x = 10 + si * (sw + 4)
       pdf.setDrawColor(0)
-      pdf.rect(x, y, sectionWidth, sectionHeight)
-
+      pdf.rect(x, y, sw, sh)
       pdf.setFillColor(229, 236, 243)
-      pdf.rect(x, y, sectionWidth, 9, 'F')
+      pdf.rect(x, y, sw, 9, 'F')
       pdf.setFontSize(8)
       pdf.setFont('helvetica', 'bold')
-      pdf.text(section.title, x + 2, y + 6)
+      pdf.text(pdfText(s.title), x + 2, y + 6)
 
-      let rowY = y + 9
+      let ry = y + 9
       pdf.setFontSize(6.5)
       pdf.setFillColor(245, 247, 250)
-      pdf.rect(x, rowY, sectionWidth, 7, 'F')
-      pdf.text('Item', x + 2, rowY + 4.8)
-      pdf.text('OK', x + sectionWidth - 35, rowY + 4.8)
-      pdf.text('FAIL', x + sectionWidth - 23, rowY + 4.8)
-      pdf.text('N/A', x + sectionWidth - 10, rowY + 4.8)
+      pdf.rect(x, ry, sw, 7, 'F')
+      pdf.text('Item', x + 2, ry + 4.8)
+      pdf.text('OK', x + sw - 36, ry + 4.8)
+      pdf.text('FAIL', x + sw - 24, ry + 4.8)
+      pdf.text('N/A', x + sw - 11, ry + 4.8)
 
-      rowY += 7
+      ry += 7
       pdf.setFont('helvetica', 'normal')
 
-      section.items.forEach((item) => {
-        pdf.line(x, rowY, x + sectionWidth, rowY)
-        const itemText = pdf.splitTextToSize(item.label, sectionWidth - 42)[0] || item.label
-        pdf.text(itemText, x + 2, rowY + 4.2)
-        pdf.text(item.status === 'OK' ? '✓' : '', x + sectionWidth - 33, rowY + 4.2)
-        pdf.text(item.status === 'FAIL' ? 'X' : '', x + sectionWidth - 20, rowY + 4.2)
-        pdf.text(item.status === 'NA' ? '✓' : '', x + sectionWidth - 7, rowY + 4.2)
-        rowY += 6
+      s.items.forEach((it) => {
+        pdf.line(x, ry, x + sw, ry)
+        const name = pdf.splitTextToSize(pdfText(it.label), sw - 45)[0] || pdfText(it.label)
+        pdf.text(name, x + 2, ry + 4.2)
+        pdf.text(it.status === 'OK' ? 'OK' : '', x + sw - 36, ry + 4.2)
+        pdf.text(it.status === 'FAIL' ? 'X' : '', x + sw - 23, ry + 4.2)
+        pdf.text(it.status === 'NA' ? 'NA' : '', x + sw - 10, ry + 4.2)
+        ry += 6
       })
     })
 
-    y += sectionHeight + 4
+    y += sh + 4
   }
 
-  const failItems = getFailItems(report)
+  const fails = failedItems(report)
 
-  if (failItems.length > 0) {
-    if (y + 45 > pageHeight - 18) {
-      drawFooter(pdf, pageNo)
+  if (fails.length > 0) {
+    if (y + 45 > h - 18) {
+      footer(pdf, pageNo)
       pdf.addPage()
       pageNo += 1
-      drawHeader(pdf, report, qrDataUrl)
-      y = 42
+      header(pdf, report, qr)
+      y = 46
     }
 
     pdf.setFillColor(255, 230, 230)
-    pdf.rect(10, y, pageWidth - 20, 8, 'F')
+    pdf.rect(10, y, w - 20, 8, 'F')
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
     pdf.text('FAILED ITEMS / DEFECTS', 12, y + 5.5)
     y += 10
 
-    pdf.setFontSize(7)
-    failItems.forEach((item) => {
-      if (y + 8 > pageHeight - 18) {
-        drawFooter(pdf, pageNo)
+    fails.forEach((it) => {
+      if (y + 8 > h - 18) {
+        footer(pdf, pageNo)
         pdf.addPage()
         pageNo += 1
-        drawHeader(pdf, report, qrDataUrl)
-        y = 42
+        header(pdf, report, qr)
+        y = 46
       }
-
-      pdf.rect(10, y, pageWidth - 20, 8)
-      pdf.text(`${item.section} - ${item.label}`, 12, y + 3.5)
+      pdf.rect(10, y, w - 20, 8)
+      pdf.setFontSize(7)
+      pdf.text(`${pdfText(it.section)} - ${pdfText(it.label)}`, 12, y + 3.5)
       pdf.setFont('helvetica', 'normal')
-      pdf.text(`Remarks: ${item.remarks || '-'}`, 12, y + 6.5)
+      pdf.text(`Remarks: ${pdfText(it.remarks)}`, 12, y + 6.5)
       pdf.setFont('helvetica', 'bold')
       y += 8
     })
   }
 
-  if (y + 36 > pageHeight - 18) {
-    drawFooter(pdf, pageNo)
+  if (y + 36 > h - 18) {
+    footer(pdf, pageNo)
     pdf.addPage()
     pageNo += 1
-    drawHeader(pdf, report, qrDataUrl)
-    y = 42
+    header(pdf, report, qr)
+    y = 46
   }
 
-  const halfW = (pageWidth - 24) / 2
-  pdf.setDrawColor(0)
-  pdf.rect(10, y, halfW, 32)
-  pdf.rect(10 + halfW + 4, y, halfW, 32)
+  const half = (w - 24) / 2
+  pdf.rect(10, y, half, 32)
+  pdf.rect(10 + half + 4, y, half, 32)
 
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
   pdf.text('REMARKS', 12, y + 6)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(7)
-  const remarksLines = pdf.splitTextToSize(report.remarks || '-', halfW - 4)
-  pdf.text(remarksLines.slice(0, 3), 12, y + 12)
+  pdf.text(pdf.splitTextToSize(pdfText(report.remarks), half - 4).slice(0, 3), 12, y + 12)
 
   if (report.gps_map_link) {
-    const gpsLines = pdf.splitTextToSize(`GPS: ${report.gps_map_link}`, halfW - 4)
-    pdf.text(gpsLines.slice(0, 2), 12, y + 24)
+    pdf.text(pdf.splitTextToSize(`GPS: ${report.gps_map_link}`, half - 4).slice(0, 2), 12, y + 24)
   }
 
-  const signatureX = 10 + halfW + 6
+  const sigX = 10 + half + 6
   pdf.setFont('helvetica', 'bold')
-  pdf.text('DRIVER SIGNATURE', signatureX, y + 6)
+  pdf.text('DRIVER SIGNATURE', sigX, y + 6)
 
   if (report.signature_data) {
     try {
-      pdf.addImage(report.signature_data, 'PNG', signatureX, y + 10, 55, 18)
+      pdf.addImage(report.signature_data, 'PNG', sigX, y + 10, 55, 18)
     } catch {
-      pdf.text('Signature attached', signatureX, y + 18)
+      pdf.text('Signature attached', sigX, y + 18)
     }
   } else {
     pdf.setFont('helvetica', 'normal')
-    pdf.text('No signature', signatureX, y + 18)
+    pdf.text('No signature', sigX, y + 18)
   }
 
-  drawFooter(pdf, pageNo)
+  footer(pdf, pageNo)
 
-  const allPhotos = [
+  const photos = [
     ...(Array.isArray(report.photo_urls) ? report.photo_urls : []),
     report.vehicle_photo_url,
     report.tyre_photo_url,
     report.extra_photo_url,
-  ]
-    .filter(Boolean)
-    .filter((value, index, array) => array.indexOf(value) === index) as string[]
+  ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i) as string[]
 
-  if (allPhotos.length > 0) {
+  if (photos.length > 0) {
     pdf.addPage()
     pageNo += 1
-    drawHeader(pdf, report, qrDataUrl)
+    header(pdf, report, qr)
+    y = 46
 
-    y = 42
     pdf.setFillColor(17, 167, 217)
-    pdf.rect(10, y, pageWidth - 20, 8, 'F')
+    pdf.rect(10, y, w - 20, 8, 'F')
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
-    pdf.setTextColor(0)
-    pdf.text('PHOTO EVIDENCE', pageWidth / 2, y + 5.5, { align: 'center' })
+    pdf.text('PHOTO EVIDENCE', w / 2, y + 5.5, { align: 'center' })
     y += 12
 
-    const photoW = (pageWidth - 26) / 2
-    const photoH = 55
+    const pw = (w - 26) / 2
+    const ph = 55
 
-    for (let index = 0; index < Math.min(allPhotos.length, 8); index += 1) {
-      const col = index % 2
-      let rowY = y + Math.floor(index / 2) * (photoH + 12)
-      const x = 10 + col * (photoW + 6)
+    for (let i = 0; i < Math.min(photos.length, 8); i += 1) {
+      const col = i % 2
+      let rowY = y + Math.floor(i / 2) * (ph + 12)
+      const x = 10 + col * (pw + 6)
 
-      if (rowY + photoH > pageHeight - 18) {
-        drawFooter(pdf, pageNo)
+      if (rowY + ph > h - 18) {
+        footer(pdf, pageNo)
         pdf.addPage()
         pageNo += 1
-        drawHeader(pdf, report, qrDataUrl)
-        y = 42
+        header(pdf, report, qr)
+        y = 46
         rowY = y
       }
 
-      pdf.rect(x, rowY, photoW, photoH)
+      pdf.rect(x, rowY, pw, ph)
       pdf.setFontSize(7)
       pdf.setFont('helvetica', 'bold')
-      pdf.text(`Photo ${index + 1}`, x + 2, rowY + 5)
+      pdf.text(`Photo ${i + 1}`, x + 2, rowY + 5)
 
-      const imageData = await imageUrlToDataUrl(allPhotos[index])
-      if (imageData) {
+      const data = await imageUrlToDataUrl(photos[i])
+      if (data) {
         try {
-          pdf.addImage(imageData, 'JPEG', x + 2, rowY + 8, photoW - 4, photoH - 10)
+          pdf.addImage(data, 'JPEG', x + 2, rowY + 8, pw - 4, ph - 10)
         } catch {
           try {
-            pdf.addImage(imageData, 'PNG', x + 2, rowY + 8, photoW - 4, photoH - 10)
+            pdf.addImage(data, 'PNG', x + 2, rowY + 8, pw - 4, ph - 10)
           } catch {
             pdf.text('Image could not be loaded', x + 2, rowY + 16)
           }
@@ -464,7 +462,7 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
       }
     }
 
-    drawFooter(pdf, pageNo)
+    footer(pdf, pageNo)
   }
 
   return pdf.output('blob')
@@ -473,32 +471,26 @@ export async function buildChecklistPdfBlob(report: PdfChecklistReport): Promise
 export async function downloadChecklistPdf(report: PdfChecklistReport): Promise<void> {
   const blob = await buildChecklistPdfBlob(report)
   const url = URL.createObjectURL(blob)
-
   const link = document.createElement('a')
   link.href = url
-  link.download = makeFileName(report)
+  link.download = fileName(report)
   document.body.appendChild(link)
   link.click()
   link.remove()
-
   URL.revokeObjectURL(url)
 }
 
 export async function shareChecklistPdf(report: PdfChecklistReport): Promise<void> {
   const blob = await buildChecklistPdfBlob(report)
-  const file = new File([blob], makeFileName(report), { type: 'application/pdf' })
+  const file = new File([blob], fileName(report), { type: 'application/pdf' })
 
-  const navigatorWithShare = navigator as Navigator & {
+  const nav = navigator as Navigator & {
     canShare?: (data: { files?: File[] }) => boolean
     share?: (data: { title?: string; text?: string; files?: File[] }) => Promise<void>
   }
 
-  if (
-    navigatorWithShare.share &&
-    navigatorWithShare.canShare &&
-    navigatorWithShare.canShare({ files: [file] })
-  ) {
-    await navigatorWithShare.share({
+  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+    await nav.share({
       title: 'Vehicle Daily Checklist',
       text: makeChecklistShareMessage(report),
       files: [file],
@@ -511,6 +503,5 @@ export async function shareChecklistPdf(report: PdfChecklistReport): Promise<voi
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(
     `${makeChecklistShareMessage(report)}\n\nPDF downloaded. Please attach the downloaded PDF in WhatsApp.`
   )}`
-
   window.open(whatsappUrl, '_blank')
 }
