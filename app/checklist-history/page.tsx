@@ -172,7 +172,7 @@ export default function ChecklistHistoryPage() {
 
     setTimeout(async () => {
       try {
-        await downloadPdfFromElement(PDF_ELEMENT_ID, makePdfFileName(report))
+        await downloadChecklistPdf(report)
       } catch (error: any) {
         alert(error.message || 'PDF generation failed')
       } finally {
