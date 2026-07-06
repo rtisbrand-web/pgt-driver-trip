@@ -18,6 +18,10 @@ type KpiData = {
   pendingFuelApprovals: number
   todayFuelIssued: number
   lowWalletVehicles: number
+  checklistCompleted: number
+  checklistPending: number
+  checklistFailed: number
+  breakdownOpen: number
   totalDrivers: number
   totalVehicles: number
   totalTrailers: number
@@ -37,6 +41,10 @@ export default function DashboardPage() {
     pendingFuelApprovals: 0,
     todayFuelIssued: 0,
     lowWalletVehicles: 0,
+    checklistCompleted: 0,
+    checklistPending: 0,
+    checklistFailed: 0,
+    breakdownOpen: 0,
     totalDrivers: 0,
     totalVehicles: 0,
     totalTrailers: 0,
@@ -76,6 +84,15 @@ export default function DashboardPage() {
       .from('vehicle_fuel_wallet_view')
       .select('vehicle_id, balance_gallons')
 
+    const checklistsRes = await supabase
+      .from('driver_checklists')
+      .select('id, vehicle_no_snapshot, status, checklist_date')
+      .eq('checklist_date', today)
+
+    const breakdownRes = await supabase
+      .from('driver_breakdowns')
+      .select('id, status, created_at')
+
     const driversRes = await supabase
       .from('drivers')
       .select('id')
@@ -83,7 +100,7 @@ export default function DashboardPage() {
 
     const vehiclesRes = await supabase
       .from('vehicles')
-      .select('id')
+      .select('id, vehicle_no, vehicle_number, plate_no')
       .eq('is_active', true)
 
     const trailersRes = await supabase
@@ -100,6 +117,34 @@ export default function DashboardPage() {
     const fuelEntries = fuelEntriesRes.data || []
     const fuelApprovals = fuelApprovalRes.data || []
     const wallets = walletRes.data || []
+    const vehicles = vehiclesRes.data || []
+    const checklists = checklistsRes.data || []
+    const breakdowns = breakdownRes.data || []
+
+    const checklistVehicleSet = new Set(
+      checklists
+        .map((item) => String(item.vehicle_no_snapshot || '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+
+    const activeVehicleSet = new Set(
+      vehicles
+        .map((vehicle) =>
+          String(
+            vehicle.vehicle_no ||
+              vehicle.vehicle_number ||
+              vehicle.plate_no ||
+              ''
+          )
+            .trim()
+            .toUpperCase()
+        )
+        .filter(Boolean)
+    )
+
+    const completedChecklistCount = Array.from(activeVehicleSet).filter((vehicleNo) =>
+      checklistVehicleSet.has(vehicleNo)
+    ).length
 
     setKpi({
       todayTrips: trips.filter((trip) => trip.trip_date === today).length,
@@ -117,6 +162,14 @@ export default function DashboardPage() {
         .reduce((sum, entry) => sum + Number(entry.issued_gallons || 0), 0),
       lowWalletVehicles: wallets.filter(
         (wallet) => Number(wallet.balance_gallons || 0) <= 10
+      ).length,
+      checklistCompleted: completedChecklistCount,
+      checklistPending: Math.max(vehicles.length - completedChecklistCount, 0),
+      checklistFailed: checklists.filter((item) => item.status !== 'OK').length,
+      breakdownOpen: breakdowns.filter(
+        (item) =>
+          !item.status ||
+          ['open', 'new', 'pending'].includes(String(item.status).toLowerCase())
       ).length,
       totalDrivers: driversRes.data?.length || 0,
       totalVehicles: vehiclesRes.data?.length || 0,
@@ -217,14 +270,55 @@ export default function DashboardPage() {
                 color="amber"
               />
             </section>
+
+            <section className="mt-4 grid gap-4 md:grid-cols-4">
+              <KpiCard
+                title="Checklist Done"
+                value={kpi.checklistCompleted}
+                color="green"
+              />
+              <KpiCard
+                title="Checklist Pending"
+                value={kpi.checklistPending}
+                color="amber"
+              />
+              <KpiCard
+                title="Checklist Failed"
+                value={kpi.checklistFailed}
+                color="red"
+              />
+              <KpiCard
+                title="Breakdown Open"
+                value={kpi.breakdownOpen}
+                color="red"
+              />
+            </section>
           </>
         )}
 
-        <section className="mt-6 grid gap-6 lg:grid-cols-3">
+        <section className="mt-6 grid gap-6 lg:grid-cols-4">
           <Panel title="Trips Control" icon="🚛">
             <QuickLink href="/admin-trips" title="Admin Trips" desc="Verify, reject, view POD" />
             <QuickLink href="/trips" title="Trip Testing" desc="Trip entry testing screen" />
             <QuickLink href="/reports" title="Trip Reports" desc="Daily and driver reports" />
+          </Panel>
+
+          <Panel title="Safety & Compliance" icon="🛡️">
+            <QuickLink
+              href="/admin-checklists"
+              title="Daily Checklist Status"
+              desc="Vehicle-wise completed, pending and failed checklists"
+            />
+            <QuickLink
+              href="/checklist-history"
+              title="Checklist Reports"
+              desc="View, download PDF and WhatsApp share reports"
+            />
+            <QuickLink
+              href="/breakdown"
+              title="Breakdown Alerts"
+              desc="Driver breakdown alerts, GPS, photos and status"
+            />
           </Panel>
 
           <Panel title="Fuel Control" icon="⛽">
