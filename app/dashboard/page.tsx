@@ -221,7 +221,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <div className="mt-6 grid gap-3 md:grid-cols-5">
               <TopCard title="Today Trips" value={kpi.todayTrips} icon="🚛" />
               <TopCard
                 title="Fuel Issued Today"
@@ -238,6 +238,15 @@ export default function DashboardPage() {
                 value={kpi.lowWalletVehicles}
                 icon="📉"
               />
+
+              <Link href="/admin-breakdowns">
+                <TopCard
+                  title="Breakdown Alerts"
+                  value={kpi.breakdownOpen}
+                  icon="🚨"
+                  alert={kpi.breakdownOpen > 0}
+                />
+              </Link>
             </div>
           </div>
         </header>
@@ -315,9 +324,9 @@ export default function DashboardPage() {
               desc="View, download PDF and WhatsApp share reports"
             />
             <QuickLink
-              href="/breakdown"
+              href="/admin-breakdowns"
               title="Breakdown Alerts"
-              desc="Driver breakdown alerts, GPS, photos and status"
+              desc="Admin breakdown center, GPS, photos and status workflow"
             />
           </Panel>
 
@@ -376,18 +385,33 @@ function TopCard({
   title,
   value,
   icon,
+  alert,
 }: {
   title: string
   value: string | number
   icon: string
+  alert?: boolean
 }) {
   return (
-    <div className="rounded-3xl bg-white/10 p-5 backdrop-blur">
+    <div
+      className={`rounded-3xl p-5 backdrop-blur transition ${
+        alert
+          ? 'bg-red-600/25 ring-2 ring-red-400 hover:bg-red-600/35'
+          : 'bg-white/10 hover:bg-white/15'
+      }`}
+    >
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-300">{title}</p>
-        <span className="text-2xl">{icon}</span>
+        <span className={`text-2xl ${alert ? 'animate-pulse' : ''}`}>{icon}</span>
       </div>
-      <h2 className="mt-3 text-3xl font-black text-white">{value}</h2>
+      <h2 className={`mt-3 text-3xl font-black ${alert ? 'text-red-200' : 'text-white'}`}>
+        {value}
+      </h2>
+      {alert ? (
+        <p className="mt-1 text-xs font-black uppercase tracking-wider text-red-100">
+          Action Required
+        </p>
+      ) : null}
     </div>
   )
 }
