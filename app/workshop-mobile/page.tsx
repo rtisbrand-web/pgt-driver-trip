@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type WorkshopSession = {
@@ -48,7 +48,22 @@ type JobCard = {
   repair_started_at: string | null
   repair_completed_at: string | null
   mechanic_completion_notes: string | null
+  mechanic_voice_note_url?: string | null
+  mechanic_voice_note_uploaded_at?: string | null
+  mechanic_voice_note_uploaded_by?: string | null
   opened_at: string
+}
+
+type RepairPhotoStage = 'Before' | 'During' | 'After'
+
+type RepairPhoto = {
+  id: string
+  job_card_id: string
+  photo_stage: RepairPhotoStage
+  photo_url: string
+  remarks: string | null
+  uploaded_by: string | null
+  created_at: string
 }
 
 function gpsMapLink(latitude: number | null, longitude: number | null) {
@@ -76,6 +91,37 @@ function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString()
 }
 
+async function uploadFileToStorage({
+  file,
+  folder,
+}: {
+  file: File | Blob
+  folder: string
+}) {
+  const extension =
+    file instanceof File
+      ? file.name.split('.').pop() || 'jpg'
+      : 'webm'
+
+  const path = `${folder}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${extension}`
+
+  const uploadRes = await supabase.storage
+    .from('trip-documents')
+    .upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+
+  if (uploadRes.error) {
+    throw new Error(uploadRes.error.message)
+  }
+
+  return supabase.storage.from('trip-documents').getPublicUrl(path).data
+    .publicUrl
+}
+
 export default function WorkshopMobilePage() {
   const [staff, setStaff] = useState<WorkshopSession | null>(null)
   const [mechanic, setMechanic] = useState<WorkshopMechanic | null>(null)
@@ -84,6 +130,15 @@ export default function WorkshopMobilePage() {
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [completionNotes, setCompletionNotes] = useState('')
+  const [photos, setPhotos] = useState<RepairPhoto[]>([])
+  const [photoWorking, setPhotoWorking] = useState(false)
+  const [photoRemarks, setPhotoRemarks] = useState('')
+  const [photoStage, setPhotoStage] = useState<RepairPhotoStage>('Before')
+  const [recording, setRecording] = useState(false)
+  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null)
+  const [voicePreviewUrl, setVoicePreviewUrl] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
     const savedStaff = localStorage.getItem('pgt_workshop_staff')
@@ -161,6 +216,9 @@ export default function WorkshopMobilePage() {
         repair_started_at,
         repair_completed_at,
         mechanic_completion_notes,
+        mechanic_voice_note_url,
+        mechanic_voice_note_uploaded_at,
+        mechanic_voice_note_uploaded_by,
         opened_at
       `)
       .eq('assigned_mechanic_id', mechanicId)
@@ -177,14 +235,32 @@ export default function WorkshopMobilePage() {
     setJobs((data || []) as JobCard[])
   }
 
+  async function loadRepairPhotos(jobId: string) {
+    const { data, error } = await supabase
+      .from('workshop_repair_photos')
+      .select('*')
+      .eq('job_card_id', jobId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    setPhotos((data || []) as RepairPhoto[])
+  }
+
   function logout() {
     localStorage.removeItem('pgt_workshop_staff')
     window.location.href = '/workshop-login'
   }
 
-  function openJob(job: JobCard) {
+  async function openJob(job: JobCard) {
     setSelected(job)
     setCompletionNotes(job.mechanic_completion_notes || '')
+    setVoiceBlob(null)
+    setVoicePreviewUrl('')
+    await loadRepairPhotos(job.id)
   }
 
   async function acceptJob(job: JobCard) {
@@ -422,15 +498,6 @@ export default function WorkshopMobilePage() {
     })
   }
 
-  async function completeRepair(job: JobCard) {
-    await saveLocationEvent(job, 'Repair Completed', {
-      repair_completed_at: new Date().toISOString(),
-      status: 'Completed',
-      dispatch_status: 'Completed',
-      mechanic_completion_notes: completionNotes.trim() || null,
-    })
-  }
-
   async function waitingParts(job: JobCard) {
     if (!mechanic) return
 
@@ -458,6 +525,159 @@ export default function WorkshopMobilePage() {
     setSelected({ ...job, ...updateData })
   }
 
+  async function uploadRepairPhoto(file: File, stage: RepairPhotoStage) {
+    if (!selected || !staff) return
+
+    const currentStageCount = photos.filter(
+      (photo) => photo.photo_stage === stage
+    ).length
+
+    if ((stage === 'Before' || stage === 'After') && currentStageCount >= 3) {
+      alert(`${stage} photos maximum 3 allowed.`)
+      return
+    }
+
+    setPhotoWorking(true)
+
+    try {
+      const photoUrl = await uploadFileToStorage({
+        file,
+        folder: `workshop-repair-photos/${selected.id}/${stage.toLowerCase()}`,
+      })
+
+      const { error } = await supabase.from('workshop_repair_photos').insert([
+        {
+          job_card_id: selected.id,
+          photo_stage: stage,
+          photo_url: photoUrl,
+          remarks: photoRemarks.trim() || null,
+          uploaded_by: staff.name || 'Workshop Staff',
+        },
+      ])
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      setPhotoRemarks('')
+      await loadRepairPhotos(selected.id)
+    } catch (error: any) {
+      alert(error.message || 'Photo upload failed')
+    } finally {
+      setPhotoWorking(false)
+    }
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        setVoiceBlob(blob)
+        setVoicePreviewUrl(URL.createObjectURL(blob))
+        stream.getTracks().forEach((track) => track.stop())
+      }
+
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setRecording(true)
+    } catch {
+      alert('Microphone permission is required to record voice note.')
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorderRef.current) return
+    mediaRecorderRef.current.stop()
+    setRecording(false)
+  }
+
+  async function uploadVoiceReport(job: JobCard) {
+    if (!voiceBlob || !staff) return job.mechanic_voice_note_url || null
+
+    const voiceUrl = await uploadFileToStorage({
+      file: voiceBlob,
+      folder: `workshop-voice-reports/${job.id}`,
+    })
+
+    const { error } = await supabase
+      .from('workshop_job_cards')
+      .update({
+        mechanic_voice_note_url: voiceUrl,
+        mechanic_voice_note_uploaded_at: new Date().toISOString(),
+        mechanic_voice_note_uploaded_by: staff.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.id)
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return voiceUrl
+  }
+
+  async function completeRepair(job: JobCard) {
+    const beforeCount = photos.filter((photo) => photo.photo_stage === 'Before')
+      .length
+    const afterCount = photos.filter((photo) => photo.photo_stage === 'After')
+      .length
+    const hasNotes = Boolean(completionNotes.trim())
+    const hasVoice = Boolean(voiceBlob || job.mechanic_voice_note_url)
+
+    if (beforeCount < 1) {
+      alert('At least 1 Before Repair photo is required.')
+      return
+    }
+
+    if (afterCount < 1) {
+      alert('At least 1 After Repair photo is required.')
+      return
+    }
+
+    if (!hasNotes && !hasVoice) {
+      alert('Please write notes or record a voice report before completing job.')
+      return
+    }
+
+    setWorking(true)
+
+    try {
+      const voiceUrl = await uploadVoiceReport(job)
+
+      await saveLocationEvent(
+        {
+          ...job,
+          mechanic_voice_note_url: voiceUrl,
+        },
+        'Repair Completed',
+        {
+          repair_completed_at: new Date().toISOString(),
+          status: 'Completed',
+          dispatch_status: 'Completed',
+          supervisor_status: 'Under Review',
+          submitted_to_supervisor_at: new Date().toISOString(),
+          mechanic_completion_notes: completionNotes.trim() || null,
+          mechanic_voice_note_url: voiceUrl,
+        }
+      )
+    } catch (error: any) {
+      alert(error.message || 'Complete repair failed')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   function nextActionLabel(job: JobCard) {
     const dispatchStatus = job.dispatch_status || 'Pending'
 
@@ -465,7 +685,7 @@ export default function WorkshopMobilePage() {
     if (dispatchStatus === 'Accepted') return 'Start Journey'
     if (dispatchStatus === 'Travelling') return 'Mark Arrived'
     if (dispatchStatus === 'Arrived') return 'Start Repair'
-    if (dispatchStatus === 'Repair Started') return 'Complete Repair'
+    if (dispatchStatus === 'Repair Started') return 'Submit to Supervisor'
     if (dispatchStatus === 'Waiting Parts') return 'Waiting Parts'
     return 'Work Update'
   }
@@ -478,6 +698,14 @@ export default function WorkshopMobilePage() {
       completed: jobs.filter((job) => job.status === 'Completed').length,
     }
   }, [jobs])
+
+  const photoCounts = useMemo(() => {
+    return {
+      Before: photos.filter((photo) => photo.photo_stage === 'Before').length,
+      During: photos.filter((photo) => photo.photo_stage === 'During').length,
+      After: photos.filter((photo) => photo.photo_stage === 'After').length,
+    }
+  }, [photos])
 
   return (
     <main className="min-h-screen bg-slate-100 p-4">
@@ -626,6 +854,10 @@ export default function WorkshopMobilePage() {
               <div className="mt-4 grid gap-3">
                 <Info title="Status" value={selected.status} />
                 <Info title="Dispatch" value={selected.dispatch_status || 'Pending'} />
+                <Info title="Supervisor" value={(selected as any).supervisor_status || 'Pending'} />
+                {(selected as any).returned_reason ? (
+                  <Info title="Return Reason" value={(selected as any).returned_reason} />
+                ) : null}
                 <Info title="Accepted" value={formatDateTime(selected.accepted_at || null)} />
                 <Info
                   title="Journey Started"
@@ -652,13 +884,170 @@ export default function WorkshopMobilePage() {
                 </a>
               ) : null}
 
-              <textarea
-                value={completionNotes}
-                onChange={(event) => setCompletionNotes(event.target.value)}
-                rows={4}
-                placeholder="Work notes / completion remarks..."
-                className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold outline-none focus:border-orange-500"
-              />
+              {(selected.dispatch_status === 'Arrived' ||
+                selected.dispatch_status === 'Repair Started' ||
+                selected.dispatch_status === 'Waiting Parts' ||
+                selected.dispatch_status === 'Completed') && (
+                <section className="mt-5 rounded-3xl border border-slate-200 p-4">
+                  <h3 className="text-lg font-black text-slate-900">
+                    Repair Photos
+                  </h3>
+
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Before: min 1 / max 3 • After: min 1 / max 3 • During optional
+                  </p>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <PhotoCounter title="Before" value={photoCounts.Before} />
+                    <PhotoCounter title="During" value={photoCounts.During} />
+                    <PhotoCounter title="After" value={photoCounts.After} />
+                  </div>
+
+                  <select
+                    value={photoStage}
+                    onChange={(event) =>
+                      setPhotoStage(event.target.value as RepairPhotoStage)
+                    }
+                    className="mt-4 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 font-bold outline-none focus:border-blue-500"
+                  >
+                    <option value="Before">Before Repair</option>
+                    <option value="During">During Repair</option>
+                    <option value="After">After Repair</option>
+                  </select>
+
+                  <input
+                    value={photoRemarks}
+                    onChange={(event) => setPhotoRemarks(event.target.value)}
+                    placeholder="Photo remarks"
+                    className="mt-3 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 font-bold outline-none focus:border-blue-500"
+                  />
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">
+                      📷 Take Photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (file) {
+                            uploadRepairPhoto(file, photoStage)
+                            event.target.value = ''
+                          }
+                        }}
+                        disabled={photoWorking}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-slate-900 text-sm font-black text-white">
+                      🖼 Gallery
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (file) {
+                            uploadRepairPhoto(file, photoStage)
+                            event.target.value = ''
+                          }
+                        }}
+                        disabled={photoWorking}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {photos.slice(0, 6).map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.photo_url}
+                        target="_blank"
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                      >
+                        <img
+                          src={photo.photo_url}
+                          alt={`${photo.photo_stage} repair`}
+                          className="h-36 w-full object-cover"
+                        />
+                        <div className="p-3">
+                          <p className="text-xs font-black text-slate-500">
+                            {photo.photo_stage} •{' '}
+                            {new Date(photo.created_at).toLocaleString()}
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-slate-700">
+                            {photo.remarks || '-'}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section className="mt-5 rounded-3xl border border-slate-200 p-4">
+                <h3 className="text-lg font-black text-slate-900">
+                  Completion Report
+                </h3>
+
+                <textarea
+                  value={completionNotes}
+                  onChange={(event) => setCompletionNotes(event.target.value)}
+                  rows={4}
+                  placeholder="Work notes / completion remarks..."
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold outline-none focus:border-orange-500"
+                />
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                  <p className="text-xs font-black uppercase text-slate-400">
+                    Voice Report
+                  </p>
+
+                  {voicePreviewUrl ? (
+                    <audio controls src={voicePreviewUrl} className="mt-2 w-full" />
+                  ) : selected.mechanic_voice_note_url ? (
+                    <audio
+                      controls
+                      src={selected.mechanic_voice_note_url}
+                      className="mt-2 w-full"
+                    />
+                  ) : (
+                    <p className="mt-2 text-sm font-semibold text-slate-500">
+                      No voice report recorded yet.
+                    </p>
+                  )}
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {!recording ? (
+                      <button
+                        onClick={startRecording}
+                        className="h-11 rounded-2xl bg-red-600 font-black text-white"
+                      >
+                        🎤 Start
+                      </button>
+                    ) : (
+                      <button
+                        onClick={stopRecording}
+                        className="h-11 rounded-2xl bg-slate-900 font-black text-white"
+                      >
+                        ⏹ Stop
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setVoiceBlob(null)
+                        setVoicePreviewUrl('')
+                      }}
+                      className="h-11 rounded-2xl bg-slate-200 font-black text-slate-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </section>
 
               <div className="mt-4 grid gap-3">
                 {(!selected.dispatch_status || selected.dispatch_status === 'Pending') && (
@@ -716,7 +1105,7 @@ export default function WorkshopMobilePage() {
                       disabled={working}
                       className="h-12 rounded-2xl bg-emerald-600 font-black text-white disabled:opacity-60"
                     >
-                      Complete Repair
+                      Submit to Supervisor
                     </button>
                   </>
                 )}
@@ -727,13 +1116,13 @@ export default function WorkshopMobilePage() {
                     disabled={working}
                     className="h-12 rounded-2xl bg-emerald-600 font-black text-white disabled:opacity-60"
                   >
-                    Complete Repair
+                    Submit to Supervisor
                   </button>
                 )}
 
                 {selected.dispatch_status === 'Completed' && (
                   <div className="rounded-2xl bg-emerald-50 p-4 text-center font-black text-emerald-700">
-                    Job completed. Waiting for admin verification.
+                    Job submitted. Waiting for supervisor review.
                   </div>
                 )}
               </div>
@@ -759,6 +1148,16 @@ function Info({ title, value }: { title: string; value: string }) {
     <div className="rounded-2xl bg-slate-50 p-3">
       <p className="text-[10px] font-black uppercase text-slate-400">{title}</p>
       <p className="mt-1 text-sm font-black text-slate-900">{value}</p>
+    </div>
+  )
+}
+
+
+function PhotoCounter({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3 text-center">
+      <p className="text-[10px] font-black uppercase text-slate-400">{title}</p>
+      <p className="mt-1 text-xl font-black text-slate-900">{value}</p>
     </div>
   )
 }
