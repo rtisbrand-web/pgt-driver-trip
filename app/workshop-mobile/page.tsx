@@ -51,6 +51,12 @@ type JobCard = {
   mechanic_voice_note_url?: string | null
   mechanic_voice_note_uploaded_at?: string | null
   mechanic_voice_note_uploaded_by?: string | null
+  last_mechanic_lat?: number | null
+  last_mechanic_lng?: number | null
+  last_mechanic_gps_link?: string | null
+  last_mechanic_gps_at?: string | null
+  mobile_last_action?: string | null
+  mobile_last_action_at?: string | null
   opened_at: string
 }
 
@@ -219,6 +225,12 @@ export default function WorkshopMobilePage() {
         mechanic_voice_note_url,
         mechanic_voice_note_uploaded_at,
         mechanic_voice_note_uploaded_by,
+        last_mechanic_lat,
+        last_mechanic_lng,
+        last_mechanic_gps_link,
+        last_mechanic_gps_at,
+        mobile_last_action,
+        mobile_last_action_at,
         opened_at
       `)
       .eq('assigned_mechanic_id', mechanicId)
@@ -263,6 +275,18 @@ export default function WorkshopMobilePage() {
     await loadRepairPhotos(job.id)
   }
 
+  async function createSupervisorNotification(job: JobCard, title: string, message: string) {
+    await supabase.from('workshop_notifications').insert([
+      {
+        job_card_id: job.id,
+        notification_to: 'Workshop Supervisor',
+        notification_type: 'Workshop Job Update',
+        title,
+        message,
+      },
+    ])
+  }
+
   async function acceptJob(job: JobCard) {
     if (!staff || !mechanic) return
 
@@ -272,6 +296,8 @@ export default function WorkshopMobilePage() {
       dispatch_status: 'Accepted',
       accepted_at: new Date().toISOString(),
       accepted_by: staff.id,
+      mobile_last_action: 'Accepted',
+      mobile_last_action_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
@@ -304,6 +330,12 @@ export default function WorkshopMobilePage() {
       return
     }
 
+    await createSupervisorNotification(
+      job,
+      'Job Accepted',
+      `${staff.name} accepted job ${job.job_no || ''} for vehicle ${job.vehicle_no_snapshot || ''}.`
+    )
+
     await loadJobs(mechanic.id)
     setSelected({ ...job, ...updateData })
   }
@@ -330,6 +362,12 @@ export default function WorkshopMobilePage() {
 
       const updateData = {
         ...patch,
+        last_mechanic_lat: latitude,
+        last_mechanic_lng: longitude,
+        last_mechanic_gps_link: link,
+        last_mechanic_gps_at: new Date().toISOString(),
+        mobile_last_action: eventType,
+        mobile_last_action_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
 
@@ -393,6 +431,12 @@ export default function WorkshopMobilePage() {
       journey_started_at: new Date().toISOString(),
       journey_started_lat: latitude,
       journey_started_lng: longitude,
+      last_mechanic_lat: latitude,
+      last_mechanic_lng: longitude,
+      last_mechanic_gps_link: link,
+      last_mechanic_gps_at: new Date().toISOString(),
+      mobile_last_action: 'Journey Started',
+      mobile_last_action_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
@@ -451,6 +495,12 @@ export default function WorkshopMobilePage() {
       arrived_at: new Date().toISOString(),
       arrived_lat: latitude,
       arrived_lng: longitude,
+      last_mechanic_lat: latitude,
+      last_mechanic_lng: longitude,
+      last_mechanic_gps_link: link,
+      last_mechanic_gps_at: new Date().toISOString(),
+      mobile_last_action: 'Arrived',
+      mobile_last_action_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
@@ -671,6 +721,12 @@ export default function WorkshopMobilePage() {
           mechanic_voice_note_url: voiceUrl,
         }
       )
+
+      await createSupervisorNotification(
+        job,
+        'Job Submitted to Supervisor',
+        `${staff?.name || 'Workshop staff'} submitted job ${job.job_no || ''} for supervisor review.`
+      )
     } catch (error: any) {
       alert(error.message || 'Complete repair failed')
     } finally {
@@ -883,6 +939,62 @@ export default function WorkshopMobilePage() {
                   Open Breakdown Location
                 </a>
               ) : null}
+
+              <section className="mt-4 rounded-3xl border border-slate-200 p-4">
+                <h3 className="text-lg font-black text-slate-900">
+                  Current Job Progress
+                </h3>
+
+                <div className="mt-3 grid gap-2">
+                  {[
+                    'Pending',
+                    'Accepted',
+                    'Travelling',
+                    'Arrived',
+                    'Repair Started',
+                    'Completed',
+                  ].map((step) => {
+                    const current = selected.dispatch_status || 'Pending'
+                    const active = current === step
+
+                    return (
+                      <div
+                        key={step}
+                        className={`rounded-2xl px-4 py-3 text-sm font-black ${
+                          active
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-slate-50 text-slate-500'
+                        }`}
+                      >
+                        {active ? '● ' : '○ '}
+                        {step}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                  <p className="text-xs font-black uppercase text-slate-400">
+                    Last Action
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    {selected.mobile_last_action || '-'}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-400">
+                    {formatDateTime(selected.mobile_last_action_at || null)}
+                  </p>
+                </div>
+
+                {selected.last_mechanic_gps_link ? (
+                  <a
+                    href={selected.last_mechanic_gps_link}
+                    target="_blank"
+                    className="mt-3 flex h-11 items-center justify-center rounded-2xl bg-emerald-600 text-sm font-black text-white"
+                  >
+                    Open My Last GPS
+                  </a>
+                ) : null}
+              </section>
 
               {(selected.dispatch_status === 'Arrived' ||
                 selected.dispatch_status === 'Repair Started' ||
